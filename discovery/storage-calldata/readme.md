@@ -19,11 +19,13 @@ Calldata is the data sent with a transaction. When you call a smart contract fun
 ## Setup
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-2. Compile the contracts:
+1. Compile the contracts:
+
 ```bash
 npm run compile
 ```
@@ -39,6 +41,7 @@ npm run demo
 ```
 
 This will:
+
 1. Deploy the contract
 2. Store "design is gud" in calldata
 3. Retrieve and display the stored data
@@ -48,6 +51,7 @@ This will:
 If you want to run each step separately:
 
 #### Step 1: Start a local Hardhat node (in one terminal)
+
 ```bash
 npm run node
 ```
@@ -55,16 +59,19 @@ npm run node
 This starts a local Ethereum node on `http://127.0.0.1:8545`
 
 #### Step 2: Deploy the contract (in another terminal)
+
 ```bash
 npm run deploy
 ```
 
 This will output the contract address. Copy it and set it as an environment variable:
+
 ```bash
 export CONTRACT_ADDRESS=<deployed_address>
 ```
 
 #### Step 3: Store data in calldata
+
 ```bash
 npm run store
 ```
@@ -72,6 +79,7 @@ npm run store
 This will store the string "design is gud" in calldata by calling the contract function with that parameter.
 
 #### Step 4: Retrieve the data
+
 ```bash
 npm run retrieve
 ```
@@ -93,6 +101,7 @@ This queries the event logs to retrieve and display the stored data.
 - **Event Logs**: ~375 gas per log + 8 gas per byte of data
 
 For storing a string like "design is gud" (13 bytes):
+
 - Calldata: ~208 gas (13 bytes × 16 gas/byte)
 - Storage: ~20,000 gas (1 word)
 - Event: ~479 gas (375 + 13 × 8)
