@@ -5,12 +5,59 @@ into this project.
 
 ## Phase 1 Checklist (Research & Setup)
 
-- [ ] **Select Kyber JS library (most popular)**: choose a Kyber (ML-KEM) JavaScript library based on npm download stats + GitHub activity/maintenance; record the evidence and final choice.
-- [ ] **Verify Kyber-768 support**: confirm the chosen library supports Kyber-768 KEM keygen/encap/decap; document the exact API surface we’ll use.
-- [ ] **Confirm local Hardhat dev loop**: document the minimal local commands (install, compile, test). Example:
+- [x] **Select Kyber JS library (most popular)**: choose a Kyber (ML-KEM) JavaScript library based on npm download stats + GitHub activity/maintenance; record the evidence and final choice.
+- [x] **Verify Kyber-768 support**: confirm the chosen library supports Kyber-768 KEM keygen/encap/decap; document the exact API surface we’ll use.
+- [x] **Confirm local Hardhat dev loop**: document the minimal local commands (install, compile, test). Example:
   - `npm install`
-  - `npx hardhat compile` (or `./node_modules/.bin/hardhat compile`)
-- [ ] **Align Ethereum client tooling**: requirements currently mention `ethers`, but this scaffold uses `viem`; decide which we’ll standardize on (and update docs accordingly).
+  - `./node_modules/.bin/hardhat compile`
+  - `./node_modules/.bin/hardhat test`
+- [x] **Align Ethereum client tooling**: **DECIDED**: use `viem` (matches this scaffold and is a good fit for event/log based retrieval).
+
+### Phase 1 Notes: local Hardhat dev loop
+
+From `v0/`:
+
+```shell
+npm install
+./node_modules/.bin/hardhat compile
+./node_modules/.bin/hardhat test
+```
+
+Notes:
+
+- Prefer `./node_modules/.bin/hardhat ...` for reproducibility (uses the project’s pinned Hardhat version).
+- Current state: `contracts/` and `test/` are effectively empty right now, so `compile` / `test` may report “No contracts/tests to compile”.
+
+### Phase 1 Notes: Kyber (ML-KEM) JS library selection (preliminary)
+
+We will **start with `pqclean`** (Node.js bindings to PQClean) for ML-KEM/Kyber usage, and revisit if we hit portability/build issues.
+
+**Evidence (npm last-week downloads, collected 2026-01-24):**
+
+| Package | Last-week downloads | Notes |
+| --- | ---: | --- |
+| [`pqclean`](https://www.npmjs.com/package/pqclean) | 1770 | Node.js bindings to PQClean (wide PQC surface) |
+| [`mlkem`](https://www.npmjs.com/package/mlkem) | 2226 | TS ML‑KEM / CRYSTALS‑Kyber implementation |
+| [`crystals-kyber-js`](https://www.npmjs.com/package/crystals-kyber-js) | 645 | TS ML‑KEM / CRYSTALS‑Kyber implementation |
+| [`crystals-kyber`](https://www.npmjs.com/package/crystals-kyber) | 449 | JS CRYSTALS‑Kyber v3 implementation |
+
+**Source:** npm downloads API (example endpoint): `https://api.npmjs.org/downloads/point/last-week/pqclean`
+
+### Phase 1 Notes: confirm `pqclean` supports ML‑KEM‑768
+
+We validated the chosen library’s **KEM support** via runtime inspection of `pqclean.kem.supportedAlgorithms`.
+
+- **Result**: `pqclean` exposes **`ml-kem-768`** (alongside `ml-kem-512`, `ml-kem-1024`).
+- **Command used** (run from `v0/`):
+  - `node -e "import('pqclean').then(m => { const PQClean = m.default ?? m; console.log(PQClean.kem.supportedAlgorithms.map(a => a.name)); })"`
+- **Observed output excerpt**:
+  - `Kyber/ML-KEM matches: [ 'ml-kem-1024', 'ml-kem-512', 'ml-kem-768' ]`
+
+**API surface we’ll use (key-centric KEM API):**
+
+- `await PQClean.kem.generateKeyPair('ml-kem-768')`
+- `await publicKey.generateKey()` → `{ key, encryptedKey }`
+- `await privateKey.decryptKey(encryptedKey)` → `key`
 
 ## Strawman Project Overview
 

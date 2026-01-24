@@ -14,6 +14,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 | **Key Storage Format** | JSON with metadata | Human-readable, easy debugging, structured |
 | **Development Network** | Local Hardhat network | Fast iteration, no testnet ETH needed |
 | **Blockchain Framework** | Hardhat | Standard Ethereum development tooling |
+| **Ethereum Client Library** | viem | Type-forward TS ergonomics; great fit for event/log retrieval |
 | **Data ID Generation** | Hash of user-provided string | User-friendly, deterministic, easy to remember |
 | **Storage Location** | Transaction calldata | Cheaper than contract storage, permanent, accessible via events |
 
@@ -142,7 +143,8 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - **TR2.2**: Network: **Local Hardhat network** for MVP (DECIDED)
   - Start with local network for development and testing
   - Can extend to testnets (Sepolia/Goerli) later if needed
-- **TR2.3**: Library: ethers.js v6 (recommended) or web3.js
+- **TR2.3**: **DECIDED**: Ethereum client library: **`viem`**
+  - Rationale: strong TypeScript ergonomics and good primitives for querying/parsing event logs (matches the calldata-via-events storage model)
 - **TR2.4**: Gas optimization: Use events for data storage (cheaper than contract storage)
 
 ### TR5: Data Storage Location
