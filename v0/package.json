@@ -13,5 +13,10 @@
   },
   "dependencies": {
     "pqclean": "^0.8.1"
+  },
+  "scripts": {
+    "test": "./node_modules/.bin/hardhat test",
+    "test:node": "./node_modules/.bin/hardhat test nodejs",
+    "test:sol": "./node_modules/.bin/hardhat test solidity"
   }
 }

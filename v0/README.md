@@ -59,6 +59,39 @@ We validated the chosen library’s **KEM support** via runtime inspection of `p
 - `await publicKey.generateKey()` → `{ key, encryptedKey }`
 - `await privateKey.decryptKey(encryptedKey)` → `key`
 
+## Phase 2 (Core Cryptography): implemented
+
+We added a minimal crypto core + unit tests to validate the Kyber/ML‑KEM → HKDF → AES‑GCM flow end-to-end.
+
+### Code added
+
+- **Crypto helpers**: `src/crypto.js`
+  - `deriveAes256KeyFromKemSecret(...)` (HKDF-SHA256 → 32-byte AES key)
+  - `aes256GcmEncrypt(...)` / `aes256GcmDecrypt(...)` (AES-256-GCM with optional AAD)
+
+### Tests added
+
+- **Node.js unit tests**: `test/nodejs/crypto.test.js`
+  - Confirms `pqclean` exposes `ml-kem-768`
+  - KEM roundtrip: encapsulated key decapsulates to the same shared secret
+  - HKDF determinism + domain separation (salt changes derived key)
+  - AES-256-GCM roundtrip
+  - AES-256-GCM tamper detection (ciphertext/tag)
+
+### Run the tests
+
+From `v0/`:
+
+```shell
+./node_modules/.bin/hardhat test nodejs
+```
+
+Or with the following script shortcut:
+
+```shell
+npm run test:node
+```
+
 ## Strawman Project Overview
 
 This example project includes:
