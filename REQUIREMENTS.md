@@ -7,7 +7,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 ## Key Technical Decisions (Summary)
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | **Cryptographic Algorithm** | Kyber-768 + AES-256-GCM (Hybrid) | Post-quantum key exchange + efficient symmetric encryption |
 | **Kyber Security Level** | Kyber-768 | 192 bits classical security, balanced payload size (~1088 bytes) |
 | **JavaScript Library** | Most popular npm package | Widest usage, community support, maintenance |
@@ -173,7 +173,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 - **TR3.1**: Structured format for encrypted payload (stored in calldata):
 
-  ```
+  ```none
   [Version: 1 byte]
   [Algorithm ID: 1 byte] (0x01 = Kyber-768 + AES-256-GCM)
   [Kyber Ciphertext: variable, ~1088 bytes for Kyber-768]
