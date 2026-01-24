@@ -2,9 +2,10 @@ import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 
 import encryptAndStorePlugin from "./plugins/encrypt-and-store/index.js";
+import retrieveAndDecryptPlugin from "./plugins/retrieve-and-decrypt/index.js";
 
 export default defineConfig({
-  plugins: [hardhatToolboxViemPlugin, encryptAndStorePlugin],
+  plugins: [hardhatToolboxViemPlugin, encryptAndStorePlugin, retrieveAndDecryptPlugin],
   solidity: {
     profiles: {
       default: {

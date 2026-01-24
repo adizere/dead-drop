@@ -21,3 +21,6 @@
 
 # Local secrets
 /keys
+
+# Test-only key artifacts
+/keys-test

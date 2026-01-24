@@ -124,7 +124,7 @@ npm run test:node
 
 We implemented the first Phase 4 item: a CLI that **encrypts a plaintext** and **stores it on-chain** via `EncryptedCalldataStorage.storeEncrypted(...)`.
 
-### What it does
+### What it does (retrieve + decrypt)
 
 - **Encryption**:
   - ML‑KEM‑768 via `pqclean` (KEM encapsulation)
@@ -139,7 +139,7 @@ We implemented the first Phase 4 item: a CLI that **encrypts a plaintext** and *
   - Writes a local file (gitignored) to `v0/keys/<id>.key.json`
   - This file contains the ML‑KEM private key required for decryption later (keep it secret)
 
-### How to run
+### How to run (retrieve + decrypt)
 
 From `v0/`:
 
@@ -154,14 +154,14 @@ npm run store:encrypt -- --id demo-file --file ./path/to/secret.bin
 npm run store:encrypt -- --id demo --message "hello" --contract 0x...
 ```
 
-### Implementation
+### Implementation (retrieve + decrypt)
 
 - **Hardhat task**: `encrypt-and-store`
   - Registered via `plugins/encrypt-and-store/index.js`
   - Implementation: `plugins/encrypt-and-store/task-action.js`
 - **npm script**: `store:encrypt` (in `package.json`)
 
-### Tests
+### Tests (retrieve + decrypt)
 
 Accompanying tests exist in `v0/test/nodejs/e2e-encrypt-store-decrypt.test.js`.
 They assert both the happy path as well as a negative flow. Run the tests using the standard:
@@ -169,6 +169,51 @@ They assert both the happy path as well as a negative flow. Run the tests using 
 ```shell
 npm run test
 ```
+
+## Phase 4 (Client Integration) – point 2: implemented (CLI retrieve + decrypt)
+
+We implemented the second Phase 4 item: a CLI that **retrieves the encrypted payload from `DataStored` logs** and **decrypts it locally** using the saved ML‑KEM private key.
+
+### What it does
+
+- **Retrieval**:
+  - Queries `DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)`
+  - Filters by `(contract, dataId, user)` and uses the **latest** match
+- **Decryption**:
+  - Loads the ML‑KEM private key from `keys/<id>.key.json` (or `--keys <path>`)
+  - Unpacks payload: `[version][algId][ml-kem ciphertext][iv][ciphertext][tag]`
+  - ML‑KEM‑768 decapsulation → HKDF‑SHA256 → AES‑256‑GCM decrypt
+
+### How to run
+
+From `v0/`:
+
+```shell
+# Print plaintext (utf8) to stdout
+npm run retrieve:decrypt -- --contract 0x... --id demo
+
+# Use a specific keys file
+npm run retrieve:decrypt -- --contract 0x... --id demo --keys keys/demo.key.json
+
+# Output as hex
+npm run retrieve:decrypt -- --contract 0x... --id demo --format hex
+
+# Write plaintext bytes to a file
+npm run retrieve:decrypt -- --contract 0x... --id demo --out ./plaintext.bin
+```
+
+### Implementation
+
+- **Hardhat task**: `retrieve-and-decrypt`
+  - Registered via `plugins/retrieve-and-decrypt/index.js`
+  - Implementation: `plugins/retrieve-and-decrypt/task-action.js`
+- **npm script**: `retrieve:decrypt` (in `package.json`)
+
+### Tests
+
+- `v0/test/nodejs/retrieve-and-decrypt.test.js`
+  - Happy path: store → retrieve → decrypt equals original plaintext
+  - Negative: wrong key file causes retrieval/decrypt to fail
 
 ## Strawman Project Overview -- Hardhat default docs
 
