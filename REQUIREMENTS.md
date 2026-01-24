@@ -268,55 +268,55 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### Included in MVP
 
-- ✅ Post-quantum key generation (Kyber-768)
-- ✅ Hybrid encryption (Kyber-768 + AES-256-GCM)
-- ✅ Smart contract with event-based storage (calldata)
-- ✅ Basic CLI for encrypt/store/retrieve/decrypt
-- ✅ Key management (local file storage in JSON format)
-- ✅ Single user per wallet
-- ✅ Data size limit: ~10KB per entry
-- ✅ Event-based data retrieval
+- Post-quantum key generation (Kyber-768)
+- Hybrid encryption (Kyber-768 + AES-256-GCM)
+- Smart contract with event-based storage (calldata)
+- Basic CLI for encrypt/store/retrieve/decrypt
+- Key management (local file storage in JSON format)
+- Single user per wallet
+- Data size limit: ~10KB per entry
+- Event-based data retrieval
 
 ### Excluded from MVP (Future)
 
-- ❌ Password-based key derivation
-- ❌ Key encryption for stored keys
-- ❌ Multi-user sharing/access control
-- ❌ Data compression
-- ❌ Chunking for large files
-- ❌ Web UI
-- ❌ Key rotation
-- ❌ Multiple algorithm support (only one hybrid scheme)
-- ❌ Data deletion/updates
+- Password-based key derivation
+- Key encryption for stored keys
+- Multi-user sharing/access control
+- Data compression
+- Chunking for large files
+- Web UI
+- Key rotation
+- Multiple algorithm support (only one hybrid scheme)
+- Data deletion/updates
 
 ## Decisions Made
 
-### ✅ Decision 1: Cryptographic Algorithm
+### Decision 1: Cryptographic Algorithm
 
 - **Kyber-768** for key exchange (post-quantum KEM)
 - **AES-256-GCM** for data encryption (symmetric authenticated encryption)
 - **Hybrid approach** combining both
 
-### ✅ Decision 2: JavaScript Library
+### Decision 2: JavaScript Library
 
 - Use the **most popular and widely-used** JavaScript library for Kyber-768
 - Selection will be based on npm download statistics, GitHub activity, and community support
 - Final library choice will be determined before implementation phase
 - Must support Kyber-768 specifically
 
-### ✅ Decision 3: Key Storage Format
+### Decision 3: Key Storage Format
 
 - **JSON format** with structured metadata
 - Includes version, algorithm info, keys, and timestamp
 - Stored in `keys/` directory with `.key.json` extension
 
-### ✅ Decision 4: Development Network
+### Decision 4: Development Network
 
 - **Local Hardhat network** for MVP
 - Fast iteration and testing without testnet ETH requirements
 - Can extend to testnets later if needed
 
-### ✅ Decision 5: Data ID Generation
+### Decision 5: Data ID Generation
 
 - **Hash of user-provided string** (DECIDED)
 - User-friendly: users can use meaningful identifiers
@@ -324,7 +324,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - Example: `ethers.id("my-secret")` → bytes32
 - Implementation: Use ethers.js `id()` function or keccak256 hash
 
-### ✅ Decision 6: Storage Location
+### Decision 6: Storage Location
 
 - **Transaction calldata** (DECIDED)
 - Store encrypted data in transaction calldata via smart contract events
@@ -378,12 +378,12 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ## Success Criteria
 
-1. ✅ Can encrypt ~10KB of data using post-quantum cryptography
-2. ✅ Can store encrypted data on Ethereum blockchain
-3. ✅ Can retrieve and decrypt data successfully
-4. ✅ Keys are never exposed on-chain
-5. ✅ System uses NIST-standardized post-quantum algorithms
-6. ✅ Documentation is clear and complete
+1. Can encrypt ~10KB of data using post-quantum cryptography
+2. Can store encrypted data on Ethereum blockchain
+3. Can retrieve and decrypt data successfully
+4. Keys are never exposed on-chain
+5. System uses NIST-standardized post-quantum algorithms
+6. Documentation is clear and complete
 
 ## References
 
