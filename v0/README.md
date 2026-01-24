@@ -120,7 +120,57 @@ From `v0/`:
 npm run test:node
 ```
 
-## Strawman Project Overview
+## Phase 4 (Client Integration) – point 1: implemented (CLI encrypt + store)
+
+We implemented the first Phase 4 item: a CLI that **encrypts a plaintext** and **stores it on-chain** via `EncryptedCalldataStorage.storeEncrypted(...)`.
+
+### What it does
+
+- **Encryption**:
+  - ML‑KEM‑768 via `pqclean` (KEM encapsulation)
+  - HKDF‑SHA256 (derive 32-byte AES key)
+  - AES‑256‑GCM (encrypt + authenticate)
+- **Payload format** (stored as `bytes`):
+  - `[version:1][algId:1][ml-kem ciphertext][iv:12][ciphertext][tag:16]`
+- **Storage**:
+  - Calls `EncryptedCalldataStorage.storeEncrypted(dataId, encryptedData)`
+  - `dataId = keccak256(utf8(id))`
+- **Key output**:
+  - Writes a local file (gitignored) to `v0/keys/<id>.key.json`
+  - This file contains the ML‑KEM private key required for decryption later (keep it secret)
+
+### How to run
+
+From `v0/`:
+
+```shell
+# Encrypt and store a short message (deploys a new contract if --contract is omitted)
+npm run store:encrypt -- --id demo --message "hello"
+
+# Encrypt and store a file
+npm run store:encrypt -- --id demo-file --file ./path/to/secret.bin
+
+# Store into an already deployed contract
+npm run store:encrypt -- --id demo --message "hello" --contract 0x...
+```
+
+### Implementation
+
+- **Hardhat task**: `encrypt-and-store`
+  - Registered via `plugins/encrypt-and-store/index.js`
+  - Implementation: `plugins/encrypt-and-store/task-action.js`
+- **npm script**: `store:encrypt` (in `package.json`)
+
+### Tests
+
+Accompanying tests exist in `v0/test/nodejs/e2e-encrypt-store-decrypt.test.js`.
+They assert both the happy path as well as a negative flow. Run the tests using the standard:
+
+```shell
+npm run test
+```
+
+## Strawman Project Overview -- Hardhat default docs
 
 This example project includes:
 
