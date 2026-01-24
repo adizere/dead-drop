@@ -69,7 +69,7 @@ We added a minimal crypto core + unit tests to validate the Kyber/ML‑KEM → H
   - `deriveAes256KeyFromKemSecret(...)` (HKDF-SHA256 → 32-byte AES key)
   - `aes256GcmEncrypt(...)` / `aes256GcmDecrypt(...)` (AES-256-GCM with optional AAD)
 
-### Tests added
+### Contract tests added
 
 - **Node.js unit tests**: `test/nodejs/crypto.test.js`
   - Confirms `pqclean` exposes `ml-kem-768`
@@ -87,6 +87,34 @@ From `v0/`:
 ```
 
 Or with the following script shortcut:
+
+```shell
+npm run test:node
+```
+
+## Phase 3 (Smart Contract): implemented
+
+We implemented the MVP on-chain storage mechanism as **calldata + events** (no contract storage), matching `REQUIREMENTS.md`.
+
+### Contract added/updated
+
+- **Contract**: `contracts/ContractStorage.sol` (contains `EncryptedCalldataStorage`)
+  - `storeEncrypted(bytes32 dataId, bytes calldata encryptedData)`
+  - Emits:
+    - `DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)`
+  - Enforces a soft cap:
+    - `MAX_ENCRYPTED_DATA_BYTES = 12288` (12 KiB)
+
+### Tests added
+
+- **Node.js contract tests**: `test/nodejs/calldata-storage.test.js`
+  - Emits event and verifies log retrieval via `viem`
+  - Stores a payload sized for **~10KB plaintext** (hybrid KEM + AES‑GCM budget) and verifies it succeeds
+  - Verifies oversize payload is rejected (`encryptedData too large`)
+
+### Run the contract tests
+
+From `v0/`:
 
 ```shell
 npm run test:node

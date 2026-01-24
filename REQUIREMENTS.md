@@ -90,7 +90,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 ### FR2: Encryption
 
 - **FR2.1**: Encrypt data using hybrid approach (Kyber + AES-256-GCM)
-- **FR2.2**: Support data sizes up to 1KB per entry (MVP limit)
+- **FR2.2**: Support data sizes up to ~10KB per entry (MVP limit)
 - **FR2.3**: Include metadata: algorithm identifiers, version, nonce/IV
 - **FR2.4**: Format: `[Kyber Ciphertext][AES IV][Encrypted Data][Auth Tag]`
 
@@ -101,7 +101,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
   - Event structure: `DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)`
 - **FR3.3**: Support multiple entries per user (identified by unique dataId)
 - **FR3.4**: Retrieve data by querying events filtered by user address and dataId
-- **FR3.5**: Maximum data size: 1KB per entry (limited by calldata size and gas costs)
+- **FR3.5**: Maximum data size: ~10KB per entry (limited by calldata size and gas costs)
 - **FR3.6**: Data is permanent and immutable once stored (calldata is part of transaction history)
 
 ### FR4: Decryption
@@ -166,7 +166,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
   - **Events Only**: Similar to calldata, but events have size limits and are indexed differently
 - **TR5.5**: Calldata size limits:
   - Maximum transaction size: ~128KB (block gas limit dependent)
-  - For MVP: 1KB per entry is well within limits
+  - For MVP: ~10KB per entry is well within limits
   - Multiple entries require multiple transactions
 
 ### TR3: Data Format
@@ -242,8 +242,8 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### NFR1: Performance
 
-- **NFR1.1**: Encryption should complete in < 1 second for 1KB data
-- **NFR1.2**: Decryption should complete in < 1 second for 1KB data
+- **NFR1.1**: Encryption should complete in < 1 second for ~10KB data
+- **NFR1.2**: Decryption should complete in < 1 second for ~10KB data
 - **NFR1.3**: Key generation should complete in < 100ms
 
 ### NFR2: Usability
@@ -274,7 +274,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - ✅ Basic CLI for encrypt/store/retrieve/decrypt
 - ✅ Key management (local file storage in JSON format)
 - ✅ Single user per wallet
-- ✅ Data size limit: 1KB per entry
+- ✅ Data size limit: ~10KB per entry
 - ✅ Event-based data retrieval
 
 ### Excluded from MVP (Future)
@@ -378,7 +378,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ## Success Criteria
 
-1. ✅ Can encrypt 1KB of data using post-quantum cryptography
+1. ✅ Can encrypt ~10KB of data using post-quantum cryptography
 2. ✅ Can store encrypted data on Ethereum blockchain
 3. ✅ Can retrieve and decrypt data successfully
 4. ✅ Keys are never exposed on-chain

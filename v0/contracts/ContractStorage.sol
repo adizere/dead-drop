@@ -2,88 +2,45 @@
 pragma solidity ^0.8.24;
 
 /**
- * @title ContractStorage
- * @notice Demonstrates storing data in contract storage (SSTORE)
- * 
- * Contract storage is persistent storage on the Ethereum blockchain that:
- * - Permanent: Stored in the contract's state on the blockchain
- * - Expensive: ~20,000 gas per 32-byte word for first write (SSTORE)
- * - Mutable: Can be modified by contract functions
- * - Accessible: Can be read via view functions or directly from storage slots
- * 
- * This contract stores string data in contract storage using state variables.
- * The data persists across transactions and can be read at any time.
+ * @title EncryptedCalldataStorage
+ * @notice Stores encrypted payloads on-chain via transaction calldata + events (no contract storage)
+ *
+ * This matches the project's MVP storage model:
+ * - encrypted payload is passed as calldata to a function
+ * - contract emits an event containing the payload
+ * - retrieval is done off-chain by querying event logs
  */
-contract ContractStorage {
+contract EncryptedCalldataStorage {
+    /// @notice Soft cap for the encrypted payload size (bytes) to prevent accidental huge calldata.
+    /// @dev Sized to comfortably fit ~10KB of plaintext when using a "KEM ciphertext + AES-256-GCM" payload.
+    ///      Rough budget: ~1088 (ML-KEM-768 ciphertext) + 12 (IV) + 16 (tag) + ~10KB ciphertext ≈ ~11.1KB.
+    uint256 public constant MAX_ENCRYPTED_DATA_BYTES = 12288; // 12 KiB
+
     /**
-     * @notice State variable storing the data
-     * This is stored in contract storage slot 0
-     */
-    string private storedData;
-    
-    /**
-     * @notice State variable storing the address that last stored data
-     * This is stored in contract storage slot 1
-     */
-    address private lastStorer;
-    
-    /**
-     * @notice State variable storing the timestamp of the last storage operation
-     * This is stored in contract storage slot 2
-     */
-    uint256 private lastStoredTimestamp;
-    
-    /**
-     * @notice Event emitted when data is stored
-     * @param user The address that stored the data
-     * @param data The data that was stored
+     * @notice Event emitted when encrypted data is stored
+     * @param user The address that stored the encrypted payload
+     * @param dataId Client-chosen identifier (hashed string per requirements)
+     * @param encryptedData Opaque encrypted payload bytes (stored in calldata + event data)
      * @param timestamp Block timestamp when the data was stored
      */
     event DataStored(
         address indexed user,
-        string data,
+        bytes32 indexed dataId,
+        bytes encryptedData,
         uint256 timestamp
     );
 
     /**
-     * @notice Store data in contract storage
-     * @param data The string data to store in contract storage
-     * 
-     * This function:
-     * 1. Stores the data in the `storedData` state variable (SSTORE operation)
-     * 2. Updates `lastStorer` and `lastStoredTimestamp`
-     * 3. Emits an event for indexing purposes
-     * 
-     * The data is permanently stored in contract storage and can be
-     * retrieved later using the `getStoredData()` function.
+     * @notice Store an encrypted payload by emitting an event
+     * @param dataId Client-chosen identifier (recommended: keccak256 of user string)
+     * @param encryptedData Opaque encrypted payload bytes (passed as calldata)
      */
-    function storeData(string memory data) external {
-        storedData = data;
-        lastStorer = msg.sender;
-        lastStoredTimestamp = block.timestamp;
-        
-        emit DataStored(
-            msg.sender,
-            data,
-            block.timestamp
-        );
-    }
+    function storeEncrypted(bytes32 dataId, bytes calldata encryptedData) external {
+        require(dataId != bytes32(0), "dataId cannot be zero");
+        require(encryptedData.length != 0, "encryptedData cannot be empty");
+        require(encryptedData.length <= MAX_ENCRYPTED_DATA_BYTES, "encryptedData too large");
 
-    /**
-     * @notice Retrieve the stored data from contract storage
-     * @return The stored string data
-     * @return The address that last stored the data
-     * @return The timestamp when the data was last stored
-     * 
-     * This is a view function that reads from contract storage (SLOAD).
-     * It does not cost gas when called externally (read-only).
-     */
-    function getStoredData() external view returns (
-        string memory,
-        address,
-        uint256
-    ) {
-        return (storedData, lastStorer, lastStoredTimestamp);
+        emit DataStored(msg.sender, dataId, encryptedData, block.timestamp);
     }
 
     /**
