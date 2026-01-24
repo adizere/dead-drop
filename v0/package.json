@@ -15,6 +15,7 @@
     "pqclean": "^0.8.1"
   },
   "scripts": {
+    "store:encrypt": "./node_modules/.bin/hardhat encrypt-and-store",
     "test": "./node_modules/.bin/hardhat test",
     "test:node": "./node_modules/.bin/hardhat test nodejs",
     "test:sol": "./node_modules/.bin/hardhat test solidity"
