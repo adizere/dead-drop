@@ -37,5 +37,12 @@ export default defineConfig({
       url: configVariable("SEPOLIA_RPC_URL"),
       accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
     },
+    arcTestnet: {
+      type: "http",
+      chainType: "l1",
+      url: process.env.ARC_TESTNET_RPC_URL ?? "https://rpc.testnet.arc.network",
+      chainId: 5042002,
+      accounts: [configVariable("ARC_TESTNET_PRIVATE_KEY")],
+    },
   },
 });

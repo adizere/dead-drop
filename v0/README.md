@@ -241,26 +241,31 @@ npx hardhat test solidity
 npx hardhat test nodejs
 ```
 
-### Make a deployment to Sepolia
+### Make a deployment to a testnet (Sepolia or Arc)
 
 This project’s contract is **EncryptedCalldataStorage** (in `contracts/ContractStorage.sol`), used for storing encrypted payloads on-chain via calldata and events.
 
 You can deploy it in two ways:
 
-1. **Via the encrypt-and-store CLI** (no Ignition module needed): omit `--contract` when running on Sepolia so the task deploys a new instance:
+1. **Via the encrypt-and-store CLI** (no Ignition module needed): omit `--contract` when running so the task deploys a new instance. Use `--network <name>` to choose the chain.
 
-```shell
-npx hardhat store:encrypt --network sepolia --id demo --message "hello"
-```
+   **Sepolia:**
 
-The task will deploy `EncryptedCalldataStorage` and then store the encrypted message; the deployed contract address is printed in the output.
+   ```shell
+   npx hardhat store:encrypt --network sepolia --id demo --message "hello"
+   ```
+
+   **Arc testnet** (chain ID 5042002; gas is paid in USDC):
+
+   ```shell
+   npx hardhat store:encrypt --network arcTestnet --id demo --message "hello"
+   ```
+
+   The task will deploy `EncryptedCalldataStorage` and then store the encrypted message; the deployed contract address is printed in the output.
 
 2. **Via Hardhat Ignition** (if you add a module): create an Ignition module that deploys the `EncryptedCalldataStorage` contract (e.g. `ignition/modules/EncryptedCalldataStorage.ts`). This project does not include that file by default.
 
-For either approach you need an account with funds. The Hardhat config uses a configuration variable `SEPOLIA_PRIVATE_KEY`. Set it with the `hardhat-keystore` plugin or as an environment variable:
+For either approach you need an account with funds.
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-Optional: set `SEPOLIA_RPC_URL` if you need a custom RPC endpoint for Sepolia.
+- **Sepolia:** Set `SEPOLIA_PRIVATE_KEY` (and optionally `SEPOLIA_RPC_URL`). Using the keystore: `npx hardhat keystore set SEPOLIA_PRIVATE_KEY`
+- **Arc testnet:** Set `ARC_TESTNET_PRIVATE_KEY`. RPC defaults to `https://rpc.testnet.arc.network`; override with `ARC_TESTNET_RPC_URL` if needed. Using the keystore: `npx hardhat keystore set ARC_TESTNET_PRIVATE_KEY`
