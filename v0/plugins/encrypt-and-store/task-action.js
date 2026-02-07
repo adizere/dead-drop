@@ -2,9 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 
 import PQCleanMod from "pqclean";
-import { hexToBytes, keccak256, toBytes, toHex } from "viem";
+import { toHex } from "viem";
 
 import { aes256GcmEncrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
+import {
+  ALG_ID_MLKEM768_AES256GCM,
+  HKDF_INFO,
+  HKDF_SALT,
+  PROTOCOL_VERSION,
+  buildAad,
+  computeDataId,
+  packEncryptedPayload,
+} from "../../src/protocol.js";
+import { defaultKeysPath, writeKeysFile } from "../../src/keyfile.js";
 
 const PQClean = PQCleanMod?.default ?? PQCleanMod;
 
@@ -42,7 +52,7 @@ export default async function encryptAndStoreAction(args, hre) {
     throw new Error(`Plaintext too large: ${plaintext.length} bytes (max 10240 bytes)`);
   }
 
-  const dataId = keccak256(toBytes(id));
+  const dataId = computeDataId(id);
 
   // Generate a fresh ML-KEM-768 keypair for this dataId and store it locally so it can be decrypted later.
   // (We will refine key management in a later Phase 4 item.)
@@ -52,26 +62,23 @@ export default async function encryptAndStoreAction(args, hre) {
   const { key: kemSharedSecret, encryptedKey: kemCiphertext } = await publicKey.generateKey();
 
   // Derive AES-256 key from KEM shared secret.
-  const salt = Buffer.from("shared-secret:v0", "utf8");
-  const info = Buffer.from("ml-kem-768->aes-256-gcm", "utf8");
-  const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt, info });
+  const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, {
+    salt: HKDF_SALT,
+    info: HKDF_INFO,
+  });
 
   // Bind context to the AES-GCM tag.
-  const VERSION = 1;
-  const ALG_ID = 1; // 0x01 = ML-KEM-768 + AES-256-GCM
-  const aad = Buffer.concat([Buffer.from([VERSION, ALG_ID]), Buffer.from(hexToBytes(dataId))]);
+  const aad = buildAad(dataId, {
+    version: PROTOCOL_VERSION,
+    algId: ALG_ID_MLKEM768_AES256GCM,
+  });
 
   const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
 
-  // Pack encrypted payload:
-  // [version:1][algId:1][kemCiphertext][iv:12][ciphertext][tag:16]
-  const packed = Buffer.concat([
-    Buffer.from([VERSION, ALG_ID]),
-    Buffer.from(kemCiphertext),
-    Buffer.from(iv),
-    Buffer.from(ciphertext),
-    Buffer.from(tag),
-  ]);
+  const packed = packEncryptedPayload(
+    { kemCiphertext, iv, ciphertext, tag },
+    { version: PROTOCOL_VERSION, algId: ALG_ID_MLKEM768_AES256GCM },
+  );
 
   // Connect and deploy/attach contract
   const { viem } = await hre.network.connect();
@@ -89,29 +96,16 @@ export default async function encryptAndStoreAction(args, hre) {
   const exportedPublicKey = toHex(Buffer.from(await publicKey.export()));
   const exportedPrivateKey = toHex(Buffer.from(await privateKey.export()));
 
-  const defaultKeysDir = path.join(process.cwd(), "keys");
-  ensureDir(defaultKeysDir);
-  const keysPath = keysOut
-    ? path.resolve(keysOut)
-    : path.join(defaultKeysDir, `${id}.key.json`);
-
-  fs.writeFileSync(
+  const keysPath = keysOut ? path.resolve(keysOut) : defaultKeysPath(id);
+  // Ensure directory exists for arbitrary paths.
+  ensureDir(path.dirname(keysPath));
+  writeKeysFile({
     keysPath,
-    JSON.stringify(
-      {
-        version: 1,
-        algorithm: "ml-kem-768+aes-256-gcm",
-        dataId,
-        created: new Date().toISOString(),
-        publicKey: exportedPublicKey,
-        privateKey: exportedPrivateKey,
-        note: "KEEP THIS FILE SECRET. It contains the private key needed to decrypt.",
-      },
-      null,
-      2,
-    ),
-    "utf8",
-  );
+    id,
+    dataId,
+    publicKey: exportedPublicKey,
+    privateKey: exportedPrivateKey,
+  });
 
   console.log("Stored encrypted payload:");
   console.log(`- contract: ${storage.address}`);
