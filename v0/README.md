@@ -243,26 +243,24 @@ npx hardhat test nodejs
 
 ### Make a deployment to Sepolia
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+This project’s contract is **EncryptedCalldataStorage** (in `contracts/ContractStorage.sol`), used for storing encrypted payloads on-chain via calldata and events.
 
-To run the deployment to a local chain:
+You can deploy it in two ways:
+
+1. **Via the encrypt-and-store CLI** (no Ignition module needed): omit `--contract` when running on Sepolia so the task deploys a new instance:
 
 ```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+npx hardhat store:encrypt --network sepolia --id demo --message "hello"
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+The task will deploy `EncryptedCalldataStorage` and then store the encrypted message; the deployed contract address is printed in the output.
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+2. **Via Hardhat Ignition** (if you add a module): create an Ignition module that deploys the `EncryptedCalldataStorage` contract (e.g. `ignition/modules/EncryptedCalldataStorage.ts`). This project does not include that file by default.
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+For either approach you need an account with funds. The Hardhat config uses a configuration variable `SEPOLIA_PRIVATE_KEY`. Set it with the `hardhat-keystore` plugin or as an environment variable:
 
 ```shell
 npx hardhat keystore set SEPOLIA_PRIVATE_KEY
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+Optional: set `SEPOLIA_RPC_URL` if you need a custom RPC endpoint for Sepolia.
