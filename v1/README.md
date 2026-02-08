@@ -44,33 +44,33 @@ npm install
 npm test              # run all tests (15 passing)
 ```
 
-### Encrypt and store
+### Encrypt and store, assuming Arc testnet
 
 ```shell
 # Deploys a new contract and stores the encrypted message
-npm run store:encrypt -- --id demo --message "hello"
+npm run store:encrypt -- --id demo --message "hello" --network arcTestnet
 
 # Store into an existing contract
-npm run store:encrypt -- --id demo --message "hello" --contract 0x...
+npm run store:encrypt -- --id demo --message "hello" --contract 0x... --network arcTestnet
 
 # Encrypt a file
-npm run store:encrypt -- --id demo-file --file ./path/to/secret.bin
+npm run store:encrypt -- --id demo-file --file ./path/to/secret.bin --network arcTestnet
 ```
 
 ### Retrieve and decrypt
 
 ```shell
 # Print plaintext to stdout
-npm run retrieve:decrypt -- --contract 0x... --id demo
+npm run retrieve:decrypt -- --contract 0x... --id demo --network arcTestnet
 
 # Output as hex
-npm run retrieve:decrypt -- --contract 0x... --id demo --format hex
+npm run retrieve:decrypt -- --contract 0x... --id demo --format hex --network arcTestnet
 
 # Write to file
-npm run retrieve:decrypt -- --contract 0x... --id demo --out ./plaintext.bin
+npm run retrieve:decrypt -- --contract 0x... --id demo --out ./plaintext.bin --network arcTestnet
 ```
 
-No `--rpcUrl` or `--fromBlock` needed -- retrieval is a direct contract read.
+Note: Unlike v0, no `--rpcUrl` or `--fromBlock` needed -- retrieval is a direct contract read.
 
 ### Deploy to a testnet
 
