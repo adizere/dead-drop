@@ -1,0 +1,24 @@
+{
+  "name": "v1",
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^3.0.7",
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.2",
+    "@types/node": "^22.19.7",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.1.5",
+    "typescript": "~5.8.0",
+    "viem": "^2.44.4"
+  },
+  "dependencies": {
+    "pqclean": "^0.8.1"
+  },
+  "scripts": {
+    "store:encrypt": "./node_modules/.bin/hardhat encrypt-and-store",
+    "retrieve:decrypt": "./node_modules/.bin/hardhat retrieve-and-decrypt",
+    "test": "./node_modules/.bin/hardhat test",
+    "test:node": "./node_modules/.bin/hardhat test nodejs",
+    "test:sol": "./node_modules/.bin/hardhat test solidity"
+  }
+}
