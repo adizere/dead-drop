@@ -27,6 +27,7 @@ v1 fixes all of this by storing data in **contract state** (a Solidity mapping).
 | **Crypto** | ML-KEM-768 + AES-256-GCM, HKDF-SHA256 | **Identical** (same protocol, same constants) |
 | **Payload format** | `[version:1][algId:1][kemCt][iv:12][ct][tag:16]` | **Identical** |
 | **Key files** | `keys/<id>.key.json` | `keys/default.key.json` -- single shared keypair reused across secrets |
+| **Frontend** | None | Single-file browser UI (`frontend/index.html`) -- encrypt/store and retrieve/decrypt from the browser |
 
 ### Changelog
 
@@ -38,6 +39,26 @@ See [CHANGELOG.md](./CHANGELOG.md) for history of change to this version.
 - `src/protocol.js` -- payload pack/unpack, AAD, `computeDataId()`
 - `src/keyfile.js` -- key file I/O
 - `src/pqclean.js` -- ML-KEM-768 wrapper
+
+## Frontend
+
+v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, single file). Serve it with any static HTTP server (e.g. `npx serve .`) and open in a browser with MetaMask.
+
+### What it does
+
+- **Encrypt & Store** -- type an identifier + plaintext message, sign a transaction, and store the encrypted blob on-chain.
+- **Retrieve & Decrypt** -- enter an identifier (and optionally a user address), read the blob via a `view` call (no gas), and decrypt locally.
+
+### Technical details
+
+| | |
+| --- | --- |
+| **Dependencies** | No `node_modules` -- ESM imports from `esm.sh` at runtime: [`viem@2`](https://viem.sh) (Ethereum client) and [`mlkem@1`](https://github.com/nickovs/mlkem) (ML-KEM-768) |
+| **Crypto** | ML-KEM-768 encap/decap via `mlkem`; AES-256-GCM + HKDF-SHA256 via the native Web Crypto API. Same protocol and payload format as the CLI |
+| **Wallet** | MetaMask (EIP-1193 `window.ethereum`); auto-switches to Arc Testnet (chain 5042002) if needed |
+| **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store, `getEncrypted` view call for retrieval |
+| **Key management** | Public/private key hex from `keys/default.key.json` hardcoded as constants at the top of the script |
+| **UI** | Brutalist monospace theme; line-numbered editor for input/output; fully responsive |
 
 ## Quick start
 
