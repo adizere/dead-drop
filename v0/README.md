@@ -269,3 +269,14 @@ For either approach you need an account with funds.
 
 - **Sepolia:** Set `SEPOLIA_PRIVATE_KEY` (and optionally `SEPOLIA_RPC_URL`). Using the keystore: `npx hardhat keystore set SEPOLIA_PRIVATE_KEY`
 - **Arc testnet:** Set `ARC_TESTNET_PRIVATE_KEY`. RPC defaults to `https://rpc.testnet.arc.network`; override with `ARC_TESTNET_RPC_URL` if needed. Using the keystore: `npx hardhat keystore set ARC_TESTNET_PRIVATE_KEY`
+
+### Retrieve and decrypt from a testnet (Sepolia or Arc)
+
+After you’ve stored encrypted data (see above), you can fetch it from chain and decrypt it using the **retrieve-and-decrypt** task. You need:
+
+- The **contract address** printed when you ran `store:encrypt` (e.g. `0x23f07ef458c1d8e185d565307accad8f15225439`).
+- The **keys file** written by `store:encrypt` (default: `keys/<id>.key.json`, e.g. `keys/demo.key.json`). Keep this file secret; it contains the ML-KEM private key.
+
+**Arc testnet** (same network you used to store):
+
+npx hardhat retrieve-and-decrypt --network arcTestnet --contract <CONTRACT_ADDRESS> --id demo

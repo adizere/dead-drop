@@ -53,6 +53,13 @@ export default {
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })
+      .addOption({
+        name: "rpcUrl",
+        description:
+          "RPC URL for log fetch; when set, uses cast to fetch logs (avoids 413 on some RPCs). Requires cast on PATH.",
+        type: ArgumentType.STRING_WITHOUT_DEFAULT,
+        defaultValue: undefined,
+      })
       .setAction(() => import("./task-action.js"))
       .build(),
   ],

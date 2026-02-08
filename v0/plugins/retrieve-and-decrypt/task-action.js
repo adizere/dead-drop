@@ -23,7 +23,8 @@ import { getKemCiphertextSize, importKemPrivateKey } from "../../src/pqclean.js"
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function retrieveAndDecryptAction(args, hre) {
-  const { id, dataId: dataIdArg, contract, keys, user, out, format = "utf8", fromBlock } = args;
+  const { id, dataId: dataIdArg, contract, keys, user, out, format = "utf8", fromBlock, rpcUrl } =
+    args;
 
   if (!contract) throw new Error("Missing required option: --contract");
   if (!id && !dataIdArg) throw new Error("Provide --id or --dataId");
@@ -50,11 +51,13 @@ export default async function retrieveAndDecryptAction(args, hre) {
 
   const from = fromBlock ? BigInt(fromBlock) : 0n;
   const { encryptedData } = await getLatestDataStored({
-    publicClient,
+    publicClient: rpcUrl ? undefined : publicClient,
     contractAddress: storage.address,
     dataId,
     user: user ? filterUser : undefined, // only enforce user filter if explicitly provided
     fromBlock: from,
+    toBlock: "latest",
+    rpcUrl,
   });
 
   const packed = Buffer.from(hexToBytes(encryptedData));
