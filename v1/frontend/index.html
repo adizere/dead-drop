@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Secret</title>
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       USGC-INSPIRED BRUTALIST THEME
+       Monospace throughout. Light cream bg. Sharp edges. No frills.
+       ═══════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro",
+                   Menlo, Consolas, "DejaVu Sans Mono", monospace;
+      background: #f5f2ed;
+      color: #111;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Rules */
+    hr { border: none; border-top: 1px solid #111; margin: 1.25rem 0; }
+    hr.thin { border-top-color: #bbb; }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .subtitle {
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 0.2rem;
+    }
+    .product-code {
+      font-size: 0.82rem;
+      border: 1px solid #111;
+      padding: 0.1rem 0.5rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-left: 1rem;
+    }
+
+    /* Metadata block */
+    .meta-block {
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: #333;
+    }
+    .meta-block .row { white-space: pre; }
+
+    /* Section header */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+    }
+    .section-header h2 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .section-header .note {
+      font-size: 0.72rem;
+      color: #666;
+    }
+    .section-header .note a {
+      color: #111;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+    .section-header .note a:hover { color: #444; }
+
+    /* Labels */
+    label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.2rem;
+      margin-top: 0.85rem;
+      color: #333;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    /* Text inputs */
+    input[type="text"] {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid #999;
+      background: #faf8f5;
+      color: #111;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: #111; }
+    input[type="text"]::placeholder { color: #aaa; }
+
+    /* ── Line-numbered editor ── */
+    .editor {
+      display: flex;
+      border: 1px solid #999;
+      background: #faf8f5;
+      margin-top: 0.2rem;
+      overflow: hidden;
+    }
+    .editor:focus-within { border-color: #111; }
+
+    .editor .gutter {
+      background: #ece7df;
+      color: #999;
+      border-right: 1px solid #ccc;
+      padding: 0.45rem 0;
+      text-align: right;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      user-select: none;
+      min-width: 2.6rem;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .editor .gutter span {
+      display: block;
+      padding: 0 0.45rem 0 0.25rem;
+    }
+
+    .editor textarea,
+    .editor .output-text {
+      flex: 1;
+      font-family: inherit;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      padding: 0.45rem 0.6rem;
+      border: none;
+      background: transparent;
+      color: #111;
+      outline: none;
+      resize: none;
+      white-space: pre;
+      overflow-y: auto;
+      overflow-x: auto;
+      tab-size: 2;
+    }
+
+    .editor textarea { height: calc(0.82rem * 1.5 * 8 + 0.9rem); }
+
+    .editor .output-text {
+      min-height: calc(0.82rem * 1.5 * 6 + 0.9rem);
+      max-height: calc(0.82rem * 1.5 * 24 + 0.9rem);
+      overflow-y: auto;
+    }
+    .editor .output-text.placeholder {
+      color: #aaa;
+      font-style: italic;
+    }
+
+    /* Buttons */
+    .btn {
+      display: block;
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.6rem 1rem;
+      margin-top: 0.85rem;
+      cursor: pointer;
+      border: 2px solid #111;
+      transition: opacity 0.1s;
+    }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { opacity: 0.75; }
+    .btn-primary { background: #111; color: #f5f2ed; }
+    .btn-outline { background: transparent; color: #111; }
+
+    /* Status line */
+    .status {
+      font-size: 0.72rem;
+      margin-top: 0.4rem;
+      color: #555;
+      min-height: 1.15em;
+      word-break: break-all;
+    }
+    .status.error { color: #a00; }
+    .status.success { color: #060; }
+
+    /* Footer */
+    .footer {
+      font-size: 0.68rem;
+      color: #888;
+      margin-top: 0.25rem;
+    }
+
+    /* Two-column row for retrieve inputs */
+    .input-row {
+      display: flex;
+      gap: 1rem;
+    }
+    .input-row > div { flex: 1; }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 540px) {
+      .container { padding: 1rem; }
+      .input-row { flex-direction: column; gap: 0; }
+      .header h1 { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <hr>
+    <div class="header">
+      <div>
+        <h1>Shared Secret</h1>
+        <div class="subtitle">Post-quantum encrypted on-chain storage &mdash; v1</div>
+      </div>
+      <div class="product-code">SYS-01</div>
+    </div>
+    <hr>
+
+    <!-- Metadata -->
+    <div class="meta-block">
+      <div class="row">Network .......... Arc Testnet (5042002)</div>
+      <div class="row">Contract ......... <span id="meta-contract">0x&hellip;</span></div>
+      <div class="row">Protocol ......... ML-KEM-768 + AES-256-GCM</div>
+      <div class="row">Key .............. default.key.json (hardcoded)</div>
+    </div>
+    <hr class="thin">
+
+    <!-- ── SECTION 1: STORE ── -->
+    <div class="section-header">
+      <h2>Section 1 &mdash; Store</h2>
+      <div class="note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
+    </div>
+
+    <label for="store-id">Identifier</label>
+    <input type="text" id="store-id" placeholder="e.g. my-note">
+
+    <label>Message</label>
+    <div class="editor" id="msg-editor">
+      <div class="gutter" id="msg-gutter"></div>
+      <textarea id="store-msg" rows="8"
+        placeholder="plaintext to encrypt and store on-chain"></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
+    <div class="status" id="store-status"></div>
+
+    <hr class="thin">
+
+    <!-- ── SECTION 2: RETRIEVE ── -->
+    <div class="section-header">
+      <h2>Section 2 &mdash; Retrieve</h2>
+      <div class="note">Read-only, no gas &rarr;</div>
+    </div>
+
+    <div class="input-row">
+      <div>
+        <label for="retrieve-id">Identifier</label>
+        <input type="text" id="retrieve-id" placeholder="e.g. my-note">
+      </div>
+      <div>
+        <label for="retrieve-user">User Address (optional)</label>
+        <input type="text" id="retrieve-user" placeholder="defaults to connected wallet">
+      </div>
+    </div>
+
+    <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
+    <div class="status" id="retrieve-status"></div>
+
+    <label>Output</label>
+    <div class="editor" id="out-editor">
+      <div class="gutter" id="out-gutter"></div>
+      <div class="output-text placeholder" id="out-text">decrypted plaintext will appear here</div>
+    </div>
+
+    <hr>
+    <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Shared Secret v1</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       APPLICATION LOGIC
+       ═══════════════════════════════════════════════════════════════ -->
+  <script type="module">
+
+    // ─── CONFIGURATION ──────────────────────────────────────────────
+    // Fill these in before use.
+    const CONTRACT_ADDRESS  = "0x0000000000000000000000000000000000000000";
+    const DEFAULT_PUBLIC_KEY  = "0x"; // keys/default.key.json  .publicKey
+    const DEFAULT_PRIVATE_KEY = "0x"; // keys/default.key.json  .privateKey
+
+    const ARC_RPC      = "https://rpc.testnet.arc.network";
+    const ARC_CHAIN_ID = 5042002;
+    const ARC_CHAIN_HEX = "0x" + ARC_CHAIN_ID.toString(16);
+
+    // ─── IMPORTS ────────────────────────────────────────────────────
+    import {
+      createPublicClient,
+      createWalletClient,
+      custom,
+      http,
+      getContract,
+      keccak256,
+      toBytes,
+      toHex,
+      hexToBytes,
+    } from "https://esm.sh/viem@2";
+
+    import { MlKem768 } from "https://esm.sh/mlkem@1";
+
+    // ─── PROTOCOL CONSTANTS (from v1/src/protocol.js) ───────────────
+    const PROTOCOL_VERSION    = 1;
+    const ALG_ID              = 1; // ML-KEM-768 + AES-256-GCM
+    const HKDF_SALT           = new TextEncoder().encode("shared-secret:v0");
+    const HKDF_INFO           = new TextEncoder().encode("ml-kem-768->aes-256-gcm");
+    const KEM_CT_SIZE         = 1088; // ML-KEM-768 encapsulated key size
+
+    // ─── CONTRACT ABI (minimal) ─────────────────────────────────────
+    const ABI = [
+      {
+        name: "storeEncrypted",
+        type: "function",
+        stateMutability: "nonpayable",
+        inputs: [
+          { name: "dataId", type: "bytes32" },
+          { name: "encryptedData", type: "bytes" },
+        ],
+        outputs: [],
+      },
+      {
+        name: "getEncrypted",
+        type: "function",
+        stateMutability: "view",
+        inputs: [
+          { name: "dataId", type: "bytes32" },
+          { name: "user", type: "address" },
+        ],
+        outputs: [
+          { name: "encryptedData", type: "bytes" },
+          { name: "timestamp", type: "uint256" },
+        ],
+      },
+    ];
+
+    // ─── ARC TESTNET CHAIN ──────────────────────────────────────────
+    const arcTestnet = {
+      id: ARC_CHAIN_ID,
+      name: "Arc Testnet",
+      nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+      rpcUrls: { default: { http: [ARC_RPC] } },
+    };
+
+    // ═════════════════════════════════════════════════════════════════
+    // CRYPTO HELPERS
+    // ═════════════════════════════════════════════════════════════════
+
+    /** keccak256(toBytes(id)) — same as v1/src/protocol.js computeDataId */
+    function computeDataId(idString) {
+      return keccak256(toBytes(idString));
+    }
+
+    /** AAD = [version, algId] || dataIdBytes */
+    function buildAad(dataId) {
+      const prefix = new Uint8Array([PROTOCOL_VERSION, ALG_ID]);
+      const idBytes = hexToBytes(dataId);
+      const aad = new Uint8Array(prefix.length + idBytes.length);
+      aad.set(prefix, 0);
+      aad.set(idBytes, prefix.length);
+      return aad;
+    }
+
+    /** HKDF-SHA256 → AES-256-GCM CryptoKey */
+    async function deriveAesKey(sharedSecret, usage) {
+      const material = await crypto.subtle.importKey(
+        "raw", sharedSecret, "HKDF", false, ["deriveKey"],
+      );
+      return crypto.subtle.deriveKey(
+        { name: "HKDF", hash: "SHA-256", salt: HKDF_SALT, info: HKDF_INFO },
+        material,
+        { name: "AES-GCM", length: 256 },
+        false,
+        usage,
+      );
+    }
+
+    /**
+     * AES-256-GCM encrypt.
+     * Web Crypto returns ciphertext||tag concatenated; we split them.
+     */
+    async function aesEncrypt(aesKey, plaintext, iv, aad) {
+      const buf = new Uint8Array(await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+        aesKey, plaintext,
+      ));
+      return {
+        ciphertext: buf.slice(0, -16),
+        tag: buf.slice(-16),
+      };
+    }
+
+    /**
+     * AES-256-GCM decrypt.
+     * Web Crypto expects ciphertext||tag concatenated as input.
+     */
+    async function aesDecrypt(aesKey, iv, ciphertext, tag, aad) {
+      const combined = new Uint8Array(ciphertext.length + tag.length);
+      combined.set(ciphertext, 0);
+      combined.set(tag, ciphertext.length);
+      return new Uint8Array(await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: aad, tagLength: 128 },
+        aesKey, combined,
+      ));
+    }
+
+    /** Pack: [version:1][algId:1][kemCt][iv:12][ciphertext][tag:16] */
+    function packPayload(kemCt, iv, ct, tag) {
+      const out = new Uint8Array(2 + kemCt.length + iv.length + ct.length + tag.length);
+      let o = 0;
+      out[o++] = PROTOCOL_VERSION;
+      out[o++] = ALG_ID;
+      out.set(kemCt, o); o += kemCt.length;
+      out.set(iv, o);    o += iv.length;
+      out.set(ct, o);    o += ct.length;
+      out.set(tag, o);
+      return out;
+    }
+
+    /** Unpack the payload format back into components. */
+    function unpackPayload(packed) {
+      const buf = new Uint8Array(packed);
+      const minLen = 2 + KEM_CT_SIZE + 12 + 16;
+      if (buf.length < minLen) throw new Error(`Payload too small (${buf.length} < ${minLen})`);
+      if (buf[0] !== PROTOCOL_VERSION) throw new Error(`Unsupported version: ${buf[0]}`);
+      if (buf[1] !== ALG_ID) throw new Error(`Unsupported algId: ${buf[1]}`);
+      let o = 2;
+      const kemCt = buf.slice(o, o + KEM_CT_SIZE); o += KEM_CT_SIZE;
+      const iv    = buf.slice(o, o + 12);           o += 12;
+      const tag   = buf.slice(buf.length - 16);
+      const ct    = buf.slice(o, buf.length - 16);
+      return { kemCt, iv, ct, tag };
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // ML-KEM
+    // ═════════════════════════════════════════════════════════════════
+    const kem = new MlKem768();
+
+    function pubKeyBytes()  { return hexToBytes(DEFAULT_PUBLIC_KEY); }
+    function privKeyBytes() { return hexToBytes(DEFAULT_PRIVATE_KEY); }
+
+    // ═════════════════════════════════════════════════════════════════
+    // ETHEREUM CLIENTS
+    // ═════════════════════════════════════════════════════════════════
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(ARC_RPC),
+    });
+
+    let walletClient = null;
+    let account = null;
+
+    async function connectWallet() {
+      if (!window.ethereum) throw new Error("No wallet detected. Install MetaMask.");
+
+      walletClient = createWalletClient({
+        chain: arcTestnet,
+        transport: custom(window.ethereum),
+      });
+
+      const [addr] = await walletClient.requestAddresses();
+      account = addr;
+
+      // Ensure correct chain
+      const chainId = await walletClient.getChainId();
+      if (chainId !== ARC_CHAIN_ID) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: ARC_CHAIN_HEX }],
+          });
+        } catch (err) {
+          if (err.code === 4902) {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: ARC_CHAIN_HEX,
+                chainName: "Arc Testnet",
+                rpcUrls: [ARC_RPC],
+                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+              }],
+            });
+          } else {
+            throw new Error("Please switch to Arc Testnet (chain " + ARC_CHAIN_ID + ").");
+          }
+        }
+      }
+      return addr;
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // ENCRYPT & STORE
+    // ═════════════════════════════════════════════════════════════════
+    async function encryptAndStore(identifier, message) {
+      if (!account) throw new Error("Wallet not connected.");
+
+      const dataId    = computeDataId(identifier);
+      const plaintext = new TextEncoder().encode(message);
+
+      if (plaintext.length > 10_240) {
+        throw new Error(`Message too large: ${plaintext.length} bytes (max 10 240).`);
+      }
+
+      // 1. ML-KEM-768 encapsulate
+      const [kemCt, sharedSecret] = await kem.encap(pubKeyBytes());
+
+      // 2. Derive AES-256 key
+      const aesKey = await deriveAesKey(sharedSecret, ["encrypt"]);
+
+      // 3. Encrypt
+      const iv  = crypto.getRandomValues(new Uint8Array(12));
+      const aad = buildAad(dataId);
+      const { ciphertext, tag } = await aesEncrypt(aesKey, plaintext, iv, aad);
+
+      // 4. Pack
+      const packed = packPayload(kemCt, iv, ciphertext, tag);
+
+      // 5. Send transaction
+      const contract = getContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        client: { public: publicClient, wallet: walletClient },
+      });
+
+      const txHash = await contract.write.storeEncrypted(
+        [dataId, toHex(packed)],
+        { account },
+      );
+
+      return { txHash, dataId, bytes: packed.length };
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // RETRIEVE & DECRYPT
+    // ═════════════════════════════════════════════════════════════════
+    async function retrieveAndDecrypt(identifier, userAddr) {
+      const dataId = computeDataId(identifier);
+
+      const contract = getContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        client: publicClient,
+      });
+
+      const [encData, timestamp] = await contract.read.getEncrypted([dataId, userAddr]);
+
+      if (!encData || encData === "0x") {
+        throw new Error(`No data found for "${identifier}" / ${userAddr}.`);
+      }
+
+      const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(encData));
+
+      // 1. ML-KEM-768 decapsulate
+      const sharedSecret = await kem.decap(kemCt, privKeyBytes());
+
+      // 2. Derive AES-256 key
+      const aesKey = await deriveAesKey(sharedSecret, ["decrypt"]);
+
+      // 3. Decrypt
+      const aad       = buildAad(dataId);
+      const plaintext = await aesDecrypt(aesKey, iv, ct, tag, aad);
+
+      return {
+        text: new TextDecoder().decode(plaintext),
+        timestamp: Number(timestamp),
+      };
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // UI
+    // ═════════════════════════════════════════════════════════════════
+    const $ = (s) => document.querySelector(s);
+
+    // Elements
+    const storeIdEl      = $("#store-id");
+    const storeMsgEl     = $("#store-msg");
+    const storeBtnEl     = $("#store-btn");
+    const storeStatusEl  = $("#store-status");
+    const retrieveIdEl   = $("#retrieve-id");
+    const retrieveUserEl = $("#retrieve-user");
+    const retrieveBtnEl  = $("#retrieve-btn");
+    const retrieveStatEl = $("#retrieve-status");
+    const outTextEl      = $("#out-text");
+    const connectEl      = $("#connect-wallet-link");
+    const footerEl       = $("#footer");
+    const metaContractEl = $("#meta-contract");
+
+    // ── Contract display ────────────────────────────────────────────
+    metaContractEl.textContent =
+      CONTRACT_ADDRESS.length > 16
+        ? CONTRACT_ADDRESS.slice(0, 6) + "\u2026" + CONTRACT_ADDRESS.slice(-4)
+        : CONTRACT_ADDRESS;
+
+    // ── Line-number gutters ─────────────────────────────────────────
+    function refreshGutter(sourceEl, gutterId) {
+      const gutter = document.getElementById(gutterId);
+      const text = sourceEl.value !== undefined ? sourceEl.value : (sourceEl.textContent || "");
+      const lineCount = text === "" ? 0 : text.split("\n").length;
+      const minRows = parseInt(sourceEl.getAttribute("rows"), 10) || 6;
+      const n = Math.max(lineCount, minRows);
+      let html = "";
+      for (let i = 1; i <= n; i++) html += `<span>${i}</span>`;
+      gutter.innerHTML = html;
+    }
+
+    function setupEditor(editorId, gutterId) {
+      const editor = document.getElementById(editorId);
+      const gutter = document.getElementById(gutterId);
+      const scrollable = editor.querySelector("textarea") || editor.querySelector(".output-text");
+      if (!scrollable) return;
+      scrollable.addEventListener("scroll", () => {
+        gutter.scrollTop = scrollable.scrollTop;
+      });
+    }
+
+    // Init
+    refreshGutter(storeMsgEl, "msg-gutter");
+    refreshGutter(outTextEl, "out-gutter");
+    setupEditor("msg-editor", "msg-gutter");
+    setupEditor("out-editor", "out-gutter");
+
+    storeMsgEl.addEventListener("input", () => {
+      refreshGutter(storeMsgEl, "msg-gutter");
+      syncStoreBtn();
+    });
+
+    // ── Button state ────────────────────────────────────────────────
+    function syncStoreBtn() {
+      storeBtnEl.disabled =
+        !account || !storeIdEl.value.trim() || !storeMsgEl.value.trim();
+    }
+
+    function syncRetrieveBtn() {
+      const hasId   = !!retrieveIdEl.value.trim();
+      const hasUser = !!retrieveUserEl.value.trim() || !!account;
+      retrieveBtnEl.disabled = !hasId || !hasUser;
+    }
+
+    storeIdEl.addEventListener("input", syncStoreBtn);
+    retrieveIdEl.addEventListener("input", syncRetrieveBtn);
+    retrieveUserEl.addEventListener("input", syncRetrieveBtn);
+
+    // ── Status helpers ──────────────────────────────────────────────
+    function setStatus(el, msg, cls) {
+      el.textContent = msg;
+      el.className = "status" + (cls ? " " + cls : "");
+    }
+
+    function updateFooter() {
+      const w = account
+        ? account.slice(0, 6) + "\u2026" + account.slice(-4)
+        : "not connected";
+      footerEl.textContent = `Wallet: ${w} \u00b7 Arc Testnet \u00b7 Shared Secret v1`;
+    }
+
+    function setOutput(text) {
+      const empty = !text;
+      outTextEl.textContent = empty ? "decrypted plaintext will appear here" : text;
+      outTextEl.classList.toggle("placeholder", empty);
+      refreshGutter(outTextEl, "out-gutter");
+    }
+
+    // ── Connect wallet ──────────────────────────────────────────────
+    connectEl.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        connectEl.textContent = "Connecting\u2026";
+        const addr = await connectWallet();
+        connectEl.textContent = addr.slice(0, 6) + "\u2026" + addr.slice(-4);
+        updateFooter();
+        syncStoreBtn();
+        syncRetrieveBtn();
+      } catch (err) {
+        connectEl.textContent = "Connect wallet \u2192";
+        setStatus(storeStatusEl, "ERR: " + err.message, "error");
+      }
+    });
+
+    // ── Store action ────────────────────────────────────────────────
+    storeBtnEl.addEventListener("click", async () => {
+      const id  = storeIdEl.value.trim();
+      const msg = storeMsgEl.value;
+      if (!id || !msg) return;
+
+      storeBtnEl.disabled = true;
+      setStatus(storeStatusEl, "Encrypting\u2026");
+
+      try {
+        setStatus(storeStatusEl, "Encrypting\u2026 sending transaction");
+        const { txHash, bytes } = await encryptAndStore(id, msg);
+        setStatus(
+          storeStatusEl,
+          `Stored (${bytes} bytes). Tx: ${txHash}`,
+          "success",
+        );
+      } catch (err) {
+        setStatus(storeStatusEl, "ERR: " + err.message, "error");
+      } finally {
+        syncStoreBtn();
+      }
+    });
+
+    // ── Retrieve action ─────────────────────────────────────────────
+    retrieveBtnEl.addEventListener("click", async () => {
+      const id   = retrieveIdEl.value.trim();
+      const user = retrieveUserEl.value.trim() || account;
+      if (!id || !user) return;
+
+      retrieveBtnEl.disabled = true;
+      setStatus(retrieveStatEl, "Retrieving\u2026");
+      setOutput("");
+
+      try {
+        const { text, timestamp } = await retrieveAndDecrypt(id, user);
+        setOutput(text);
+        const when = timestamp
+          ? new Date(timestamp * 1000).toISOString()
+          : "unknown";
+        setStatus(retrieveStatEl, `Decrypted. Stored at: ${when}`, "success");
+      } catch (err) {
+        setStatus(retrieveStatEl, "ERR: " + err.message, "error");
+      } finally {
+        syncRetrieveBtn();
+      }
+    });
+
+    // ── Init ────────────────────────────────────────────────────────
+    updateFooter();
+    syncStoreBtn();
+    syncRetrieveBtn();
+
+  </script>
+</body>
+</html>
