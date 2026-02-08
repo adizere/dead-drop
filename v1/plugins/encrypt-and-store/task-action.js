@@ -14,7 +14,8 @@ import {
   computeDataId,
   packEncryptedPayload,
 } from "../../src/protocol.js";
-import { defaultKeysPath, writeKeysFile } from "../../src/keyfile.js";
+import { defaultKeysPath, readKeysFile, writeKeysFile } from "../../src/keyfile.js";
+import { importKemPublicKey } from "../../src/pqclean.js";
 
 const PQClean = PQCleanMod?.default ?? PQCleanMod;
 
@@ -26,6 +27,35 @@ function readPlaintext({ message, file }) {
   if (message !== undefined) return Buffer.from(String(message), "utf8");
   if (file !== undefined) return fs.readFileSync(String(file));
   throw new Error("Missing plaintext input: provide --message or --file");
+}
+
+/**
+ * Load an existing keypair from disk, or generate a fresh one.
+ *
+ * When the key file already exists it is reused (same keypair for many
+ * secrets).  When it doesn't exist a new ML-KEM-768 keypair is generated and
+ * written to `keysPath`.
+ *
+ * @returns {{ publicKey: import("pqclean").KemPublicKey, exportedPublicKey: string, exportedPrivateKey: string, keysPath: string, reused: boolean }}
+ */
+async function resolveKeypair(keysPath) {
+  if (fs.existsSync(keysPath)) {
+    const keyJson = readKeysFile(keysPath);
+    const publicKey = importKemPublicKey(keyJson.publicKey);
+    return {
+      publicKey,
+      exportedPublicKey: keyJson.publicKey,
+      exportedPrivateKey: keyJson.privateKey,
+      keysPath,
+      reused: true,
+    };
+  }
+
+  const { publicKey, privateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
+  const exportedPublicKey = toHex(Buffer.from(await publicKey.export()));
+  const exportedPrivateKey = toHex(Buffer.from(await privateKey.export()));
+
+  return { publicKey, exportedPublicKey, exportedPrivateKey, keysPath, reused: false };
 }
 
 /**
@@ -54,8 +84,10 @@ export default async function encryptAndStoreAction(args, hre) {
 
   const dataId = computeDataId(id);
 
-  // Generate a fresh ML-KEM-768 keypair for this dataId and store it locally so it can be decrypted later.
-  const { publicKey, privateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
+  // Resolve keypair: reuse existing default key or generate a fresh one.
+  const keysPath = keysOut ? path.resolve(keysOut) : defaultKeysPath();
+  const { publicKey, exportedPublicKey, exportedPrivateKey, reused } =
+    await resolveKeypair(keysPath);
 
   // Encapsulate (public key): produces shared secret + KEM ciphertext.
   const { key: kemSharedSecret, encryptedKey: kemCiphertext } = await publicKey.generateKey();
@@ -91,25 +123,20 @@ export default async function encryptAndStoreAction(args, hre) {
   const payloadHex = toHex(packed);
   const txHash = await storage.write.storeEncrypted([dataId, payloadHex], { account });
 
-  // Save keys locally (private key is required for decryption).
-  const exportedPublicKey = toHex(Buffer.from(await publicKey.export()));
-  const exportedPrivateKey = toHex(Buffer.from(await privateKey.export()));
-
-  const keysPath = keysOut ? path.resolve(keysOut) : defaultKeysPath(id);
-  // Ensure directory exists for arbitrary paths.
-  ensureDir(path.dirname(keysPath));
-  writeKeysFile({
-    keysPath,
-    id,
-    dataId,
-    publicKey: exportedPublicKey,
-    privateKey: exportedPrivateKey,
-  });
+  // Save keys locally when a fresh keypair was generated.
+  if (!reused) {
+    ensureDir(path.dirname(keysPath));
+    writeKeysFile({
+      keysPath,
+      publicKey: exportedPublicKey,
+      privateKey: exportedPrivateKey,
+    });
+  }
 
   console.log("Stored encrypted payload:");
   console.log(`- contract: ${storage.address}`);
   console.log(`- dataId:   ${dataId}`);
   console.log(`- bytes:    ${packed.length}`);
   console.log(`- txHash:   ${txHash}`);
-  console.log(`- keys:     ${keysPath}`);
+  console.log(`- keys:     ${keysPath}${reused ? " (reused)" : " (new)"}`);
 }

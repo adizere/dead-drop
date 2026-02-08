@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { hexToBytes } from "viem";
 
 import { aes256GcmDecrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
-import { readKeysFile } from "../../src/keyfile.js";
+import { defaultKeysPath, readKeysFile } from "../../src/keyfile.js";
 import { getEncryptedData } from "../../src/storage.js";
 import {
   HKDF_INFO,
@@ -30,8 +30,7 @@ export default async function retrieveAndDecryptAction(args, hre) {
 
   const dataId = dataIdArg ?? computeDataId(id);
 
-  const keysPath = keys ?? (id ? `keys/${id}.key.json` : undefined);
-  if (!keysPath) throw new Error("Missing keys: provide --keys (or use --id with default keys/<id>.key.json)");
+  const keysPath = keys ?? defaultKeysPath();
 
   const keyJson = readKeysFile(keysPath);
   const privateKeyHex = keyJson.privateKey;

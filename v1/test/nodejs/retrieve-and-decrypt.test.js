@@ -46,8 +46,6 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
   const keysPath = `${keysDir}/${id}.key.json`;
   writeKeysFile({
     keysPath,
-    id,
-    dataId,
     publicKey: toHex(Buffer.from(await publicKey.export())),
     privateKey: toHex(Buffer.from(await privateKey.export())),
   });
@@ -97,8 +95,6 @@ test("retrieve-and-decrypt fails with the wrong key (negative)", async () => {
   const keysPath = `${keysDir}/${id}.wrong.key.json`;
   writeKeysFile({
     keysPath,
-    id: `${id}.wrong`,
-    dataId,
     publicKey: "0x",
     privateKey: toHex(Buffer.from(await wrongPrivateKey.export())),
   });

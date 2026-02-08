@@ -36,7 +36,7 @@ const encryptStoreOptions = (t) =>
     .addOption({
       name: "keysOut",
       description:
-        "Where to write the generated ML-KEM keypair JSON (default: keys/<id>.key.json)",
+        "Where to write the ML-KEM keypair JSON (default: keys/default.key.json; reused if it already exists)",
       type: ArgumentType.FILE_WITHOUT_DEFAULT,
       defaultValue: undefined,
     })

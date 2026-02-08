@@ -6,12 +6,16 @@ function ensureDir(dir) {
 }
 
 /**
- * Default keys file path for a given id string.
- * @param {string} id
+ * Default keys file path.
+ *
+ * Uses a single shared key file (`keys/default.key.json`) rather than
+ * per-identifier paths.  This allows the same keypair to be reused
+ * across many secrets.
+ *
  * @param {string} [cwd]
  */
-export function defaultKeysPath(id, cwd = process.cwd()) {
-  return path.join(cwd, "keys", `${id}.key.json`);
+export function defaultKeysPath(cwd = process.cwd()) {
+  return path.join(cwd, "keys", "default.key.json");
 }
 
 /**
@@ -30,18 +34,18 @@ export function readKeysFile(keysPath) {
 
 /**
  * Write keys JSON file (contains private key; keep secret).
+ *
+ * The key file is decoupled from any specific secret identifier -- the same
+ * keypair is reused across many secrets.
+ *
  * @param {object} params
  * @param {string} params.keysPath
- * @param {string} params.id
- * @param {string} params.dataId
  * @param {string} params.publicKey
  * @param {string} params.privateKey
  * @param {string} [params.algorithm]
  */
 export function writeKeysFile({
   keysPath,
-  id,
-  dataId,
   publicKey,
   privateKey,
   algorithm = "ml-kem-768+aes-256-gcm",
@@ -53,7 +57,6 @@ export function writeKeysFile({
       {
         version: 1,
         algorithm,
-        dataId,
         created: new Date().toISOString(),
         publicKey,
         privateKey,

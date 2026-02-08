@@ -25,7 +25,7 @@ export default {
       })
       .addOption({
         name: "keys",
-        description: "Path to key JSON file (default: keys/<id>.key.json)",
+        description: "Path to key JSON file (default: keys/default.key.json)",
         type: ArgumentType.FILE_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })

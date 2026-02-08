@@ -26,7 +26,11 @@ v1 fixes all of this by storing data in **contract state** (a Solidity mapping).
 | **CLI options** | `--rpcUrl`, `--fromBlock` needed for retrieval | Removed (not needed) |
 | **Crypto** | ML-KEM-768 + AES-256-GCM, HKDF-SHA256 | **Identical** (same protocol, same constants) |
 | **Payload format** | `[version:1][algId:1][kemCt][iv:12][ct][tag:16]` | **Identical** |
-| **Key files** | `keys/<id>.key.json` | **Identical** |
+| **Key files** | `keys/<id>.key.json` | `keys/default.key.json` -- single shared keypair reused across secrets |
+
+### Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for history of change to this version.
 
 ### Files unchanged (copied from v0)
 

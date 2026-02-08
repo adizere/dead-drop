@@ -24,3 +24,12 @@ export function importKemPrivateKey(privateKeyHex, name = ML_KEM_768) {
   return new PQClean.kem.PrivateKey(name, hexToBytes(privateKeyHex));
 }
 
+/**
+ * Import a pqclean ML-KEM public key from hex.
+ * @param {string} publicKeyHex
+ * @param {string} [name]
+ */
+export function importKemPublicKey(publicKeyHex, name = ML_KEM_768) {
+  return new PQClean.kem.PublicKey(name, hexToBytes(publicKeyHex));
+}
+
