@@ -279,4 +279,30 @@ After you’ve stored encrypted data (see above), you can fetch it from chain an
 
 **Arc testnet** (same network you used to store):
 
+```shell
 npx hardhat retrieve-and-decrypt --network arcTestnet --contract <CONTRACT_ADDRESS> --id demo
+```
+
+The above does not work very well, because the `getLogs` method (needed for fetching the event data where the encrypted input is stored actually)
+requires a `to` and `from` parameters, to configure which blocks exactly to query from. So encrypting and storing a secret at height H requires
+changing the params "CAST_FROM_BLOCK" and "CAST_TO_BLOCK" in `events.js` with H. Without correct params, nothing may be found. Even with correct 
+parameters, we need to also pass an RPC parameter, to use the CLI-based `cast` tool, because the basic viem library is unable to fetch the parameters
+(it yields a HTTP 413 "response exceeds maximum lenght" error).
+
+So the correct instantiation is:
+
+```shell
+npx hardhat retrieve-and-decrypt \             
+  --network arcTestnet \
+  --contract 0x23f07Ef458C1D8e185d565307AccAD8F15225439 \
+  --id demo \
+  --rpcUrl "https://rpc.testnet.arc.network"
+```
+
+Assuming, again, that "CAST_FROM_BLOCK" and "CAST_TO_BLOCK" are correctly hardcoded.
+
+The task for storing works fine:
+
+```shell
+npx hardhat store:encrypt --network arcTestnet --id demo --message "hello25563" --contract 0x23f07Ef458C1D8e185d565307AccAD8F15225439
+```
