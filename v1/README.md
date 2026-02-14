@@ -59,6 +59,17 @@ v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, 
 | **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store, `getEncrypted` view call for retrieval |
 | **Key management** | Public/private key hex from `keys/default.key.json` hardcoded as constants at the top of the script |
 | **UI** | Brutalist monospace theme; line-numbered editor for input/output; fully responsive |
+| **Identifier normalization** | `idString.trim().normalize("NFC")` before `keccak256(toBytes(...))`; case-sensitive, empty identifiers rejected |
+
+### Identifier requirements
+
+Identifiers are normalized before hashing to avoid accidental mismatches:
+
+- Leading/trailing whitespace is trimmed.
+- Unicode is normalized to NFC (canonical form).
+- Case-sensitive: `"MyNote"` ≠ `"mynote"`.
+
+Note: This normalization changes the computed `dataId`. If you stored data in earlier versions using non-normalized identifiers, you must use the same normalized form to retrieve it.
 
 ## Quick start
 

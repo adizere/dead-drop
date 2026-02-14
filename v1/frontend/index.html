@@ -379,7 +379,10 @@
 
     /** keccak256(toBytes(id)) — same as v1/src/protocol.js computeDataId */
     function computeDataId(idString) {
-      return keccak256(toBytes(idString));
+      if (typeof idString !== "string") throw new Error("Identifier must be a string");
+      const normalized = idString.trim().normalize("NFC");
+      if (!normalized) throw new Error("Identifier cannot be empty");
+      return keccak256(toBytes(normalized));
     }
 
     /** AAD = [version, algId] || dataIdBytes */

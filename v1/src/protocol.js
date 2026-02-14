@@ -10,11 +10,15 @@ export const HKDF_INFO = Buffer.from("ml-kem-768->aes-256-gcm", "utf8");
 
 /**
  * Compute bytes32 dataId from a human-readable string.
+ * Identifiers are normalized to avoid accidental mismatches.
  * @param {string} idString
  * @returns {`0x${string}`}
  */
 export function computeDataId(idString) {
-  return keccak256(toBytes(idString));
+  if (typeof idString !== "string") throw new Error("Identifier must be a string");
+  const normalized = idString.trim().normalize("NFC");
+  if (!normalized) throw new Error("Identifier cannot be empty");
+  return keccak256(toBytes(normalized));
 }
 
 /**
