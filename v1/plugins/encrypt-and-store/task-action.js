@@ -99,9 +99,9 @@ export default async function encryptAndStoreAction(args, hre) {
   const payloadHex = toHex(packed);
   const txHash = await storage.write.storeEncrypted([dataId, payloadHex], { account });
 
-  // Save keys locally when requested (debugging only).
+  let keysPath = null;
   if (keysOut) {
-    const keysPath = path.resolve(keysOut);
+    keysPath = path.resolve(keysOut);
     ensureDir(path.dirname(keysPath));
     writeKeysFile({
       keysPath,
@@ -115,5 +115,5 @@ export default async function encryptAndStoreAction(args, hre) {
   console.log(`- dataId:   ${dataId}`);
   console.log(`- bytes:    ${packed.length}`);
   console.log(`- txHash:   ${txHash}`);
-  console.log(`- keys:     ${keysPath}${reused ? " (reused)" : " (new)"}`);
+  if (keysPath) console.log(`- keys:     ${keysPath}`);
 }
