@@ -63,6 +63,27 @@
       color: #333;
     }
     .meta-block .row { white-space: pre; }
+    .meta-contract-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: normal;
+    }
+    .meta-explorer-btn {
+      font-family: inherit;
+      font-size: 0.72rem;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+      border: 1px solid #111;
+      background: #f5f2ed;
+      color: #111;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .meta-explorer-btn:hover {
+      background: #111;
+      color: #f5f2ed;
+    }
 
     /* Section header */
     .section-header {
@@ -244,9 +265,9 @@
     <!-- Metadata -->
     <div class="meta-block">
       <div class="row">Network .......... Arc Testnet (5042002)</div>
-      <div class="row">Contract ......... <span id="meta-contract">0x&hellip;</span></div>
       <div class="row">Protocol ......... ML-KEM-768 + AES-256-GCM</div>
       <div class="row">Key .............. <span id="meta-key">locked (passphrase required)</span></div>
+      <div class="row">Contract ......... <span class="meta-contract-wrap"><span id="meta-contract">0x&hellip;</span><button type="button" class="meta-explorer-btn" id="meta-explorer-btn" title="Open in block explorer">&#8599;</button></span></div>
     </div>
     <hr class="thin">
 
@@ -316,7 +337,7 @@
 
     // ─── CONFIGURATION ──────────────────────────────────────────────
     // Fill these in before use.
-    const CONTRACT_ADDRESS  = "0x0000000000000000000000000000000000000000";
+    const CONTRACT_ADDRESS  = "0x7506bf34709abcb216670b31ab5a29dbcb18270e";
 
     const ARC_RPC      = "https://rpc.testnet.arc.network";
     const ARC_CHAIN_ID = 5042002;
@@ -691,12 +712,17 @@
     const footerEl       = $("#footer");
     const metaContractEl = $("#meta-contract");
     const metaKeyEl      = $("#meta-key");
+    const metaExplorerBtn = $("#meta-explorer-btn");
 
     // ── Contract display ────────────────────────────────────────────
     metaContractEl.textContent =
       CONTRACT_ADDRESS.length > 16
         ? CONTRACT_ADDRESS.slice(0, 6) + "\u2026" + CONTRACT_ADDRESS.slice(-4)
         : CONTRACT_ADDRESS;
+
+    metaExplorerBtn.addEventListener("click", () => {
+      window.open(`https://testnet.arcscan.app/address/${CONTRACT_ADDRESS}`, "_blank", "noopener,noreferrer");
+    });
 
     // ── Line-number gutters ─────────────────────────────────────────
     function refreshGutter(sourceEl, gutterId) {
