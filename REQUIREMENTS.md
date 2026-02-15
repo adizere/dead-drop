@@ -8,28 +8,28 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 | Decision | Choice | Rationale |
 | ---------- | -------- | ----------- |
-| **Cryptographic Algorithm** | Kyber-768 + AES-256-GCM (Hybrid) | Post-quantum key exchange + efficient symmetric encryption |
-| **Kyber Security Level** | Kyber-768 | 192 bits classical security, balanced payload size (~1088 bytes) |
-| **JavaScript Library** | Most popular npm package | Widest usage, community support, maintenance |
-| **Key Storage Format** | JSON with metadata | Human-readable, easy debugging, structured |
-| **Development Network** | Local Hardhat network | Fast iteration, no testnet ETH needed |
+| **Cryptographic Algorithm** | ML-KEM-768 + AES-256-GCM (Hybrid) | Post-quantum key exchange + efficient symmetric encryption |
+| **KEM Security Level** | ML-KEM-768 | 192 bits classical security, balanced payload size (~1088 bytes) |
+| **JavaScript Library** | `pqclean` (Node), `mlkem` (browser/tests) | Mature Node addon + browser-compatible ML-KEM |
+| **Key Storage Format** | Passphrase-derived per-secret keys | No server-side key storage; deterministic per-secret keys |
+| **Development Network** | Arc Testnet | Matches primary usage |
 | **Blockchain Framework** | Hardhat | Standard Ethereum development tooling |
-| **Ethereum Client Library** | viem | Type-forward TS ergonomics; great fit for event/log retrieval |
-| **Data ID Generation** | Hash of user-provided string | User-friendly, deterministic, easy to remember |
-| **Storage Location** | Transaction calldata | Cheaper than contract storage, permanent, accessible via events |
+| **Ethereum Client Library** | viem | TS ergonomics; contract calls for storage-based retrieval |
+| **Data ID Generation** | Keyed HMAC of user identifier | Prevent identifier enumeration for low-entropy ids |
+| **Storage Location** | Contract storage mapping | Direct `getEncrypted` view retrieval |
 
 ## Core Objectives
 
 1. **Post-Quantum Security**: Use cryptographic algorithms resistant to quantum computing attacks
 2. **On-Chain Storage**: Store encrypted data permanently on Ethereum blockchain
 3. **Client-Side Encryption**: All encryption/decryption happens client-side; keys never touch the blockchain
-4. **Usability**: Simple CLI interface for encrypting, storing, and retrieving data
+4. **Usability**: Simple browser UI for encrypting, storing, and retrieving data (CLI kept for testing)
 
 ## Post-Quantum Cryptography Requirements
 
 ### Algorithm Selection
 
-#### Option 1: CRYSTALS-Kyber (Recommended for MVP)
+#### Option 1: ML-KEM (Recommended for MVP)
 
 - **Type**: Key Encapsulation Mechanism (KEM)
 - **Status**: NIST PQC Standard (selected 2022)
@@ -58,7 +58,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - **Note**: Grover's algorithm only halves security, so AES-256 provides 128 bits of quantum security
 - **Limitation**: Key exchange would still need post-quantum KEM
 
-### DECIDED: Hybrid Approach (Kyber-768 + AES-256-GCM)
+### DECIDED: Hybrid Approach (ML-KEM-768 + AES-256-GCM)
 
 **Decision**: Use hybrid encryption with **Kyber-768** for key exchange and **AES-256-GCM** for data encryption.
 
@@ -72,8 +72,8 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 **Flow**:
 
-1. Generate Kyber-768 key pair (public/secret)
-2. Encapsulate shared secret using Kyber-768 public key → get ciphertext + shared secret
+1. Derive ML-KEM-768 key pair (public/secret) per secret
+2. Encapsulate shared secret using ML-KEM-768 public key → get ciphertext + shared secret
 3. Use shared secret to derive AES-256 key (via HKDF or similar)
 4. Encrypt data with AES-256-GCM
 5. Store on-chain: Kyber ciphertext + AES-encrypted data
@@ -82,10 +82,9 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### FR1: Key Management
 
-- **FR1.1**: Generate post-quantum key pairs (Kyber) client-side
-- **FR1.2**: Store secret keys securely (never on-chain)
-- **FR1.3**: Support key derivation from password (optional for MVP)
-- **FR1.4**: Key format: JSON or binary with metadata (algorithm, version, security level)
+- **FR1.1**: Derive per-secret post-quantum key pairs client-side from passphrase + identifier
+- **FR1.2**: Keys are never stored on-chain or server-side
+- **FR1.3**: Passphrase-based derivation is required for all operations
 
 ### FR2: Encryption
 
@@ -96,19 +95,18 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### FR3: On-Chain Data Storage
 
-- **FR3.1**: Store encrypted data in **transaction calldata** (not contract storage)
+- **FR3.1**: Store encrypted data in **contract storage** (mapping)
 - **FR3.2**: Emit events containing encrypted data and metadata
   - Event structure: `DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)`
 - **FR3.3**: Support multiple entries per user (identified by unique dataId)
-- **FR3.4**: Retrieve data by querying events filtered by user address and dataId
-- **FR3.5**: Maximum data size: ~10KB per entry (limited by calldata size and gas costs)
-- **FR3.6**: Data is permanent and immutable once stored (calldata is part of transaction history)
+- **FR3.4**: Retrieve data via `getEncrypted(dataId, user)` view function
+- **FR3.5**: Maximum data size: ~10KB per entry (gas and contract limit)
+- **FR3.6**: Data is mutable: re-storing overwrites previous entry for the same dataId
 
 ### FR4: Decryption
 
-- **FR4.1**: Retrieve encrypted data from blockchain events (calldata)
-- **FR4.2**: Filter events by user address and dataId
-- **FR4.3**: Extract encrypted data from event logs
+- **FR4.1**: Retrieve encrypted data from contract storage (view call)
+- **FR4.2**: Lookup uses user address + dataId
 - **FR4.4**: Decapsulate shared secret using Kyber secret key
 - **FR4.5**: Derive AES key from shared secret
 - **FR4.6**: Decrypt data using AES-256-GCM
@@ -116,58 +114,35 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### FR5: Client Interface
 
-- **FR5.1**: CLI script to encrypt and store data
-- **FR5.2**: CLI script to retrieve and decrypt data
-- **FR5.3**: Support for file input/output
-- **FR5.4**: Key management commands (generate, list, export)
+- **FR5.1**: Browser UI for encrypt/store/retrieve/decrypt
+- **FR5.2**: CLI scripts remain for testing (encrypt/store, retrieve/decrypt)
+- **FR5.3**: Support for file input/output (CLI)
 
 ## Technical Requirements
 
 ### TR1: Cryptography Libraries
 
 - **TR1.1**: Use NIST-standardized post-quantum algorithms
-- **TR1.2**: **DECIDED**: Use the most popular and widely-used JavaScript library for Kyber-768
-  - Selection criteria: npm download statistics, GitHub stars, maintenance activity, community support
-  - Will verify library supports Kyber-768 specifically
-  - Common options to evaluate:
-    - `crystals-kyber` (if available and popular)
-    - `liboqs-js` (Open Quantum Safe bindings)
-    - Other community implementations
-  - Final selection will be made based on npm popularity metrics before implementation
-- **TR1.3**: Fallback: Use WebAssembly bindings if pure JS implementation unavailable or insufficient
-- **TR1.4**: Support for AES-256-GCM (Node.js `crypto` module - native implementation)
+- **TR1.2**: **DECIDED**: `pqclean` (Node) and `mlkem` (browser/tests) for ML-KEM-768
+- **TR1.3**: Support for AES-256-GCM (Node.js `crypto` module; Web Crypto in browser)
 
 ### TR2: Blockchain Integration
 
 - **TR2.1**: Framework: **Hardhat** (DECIDED)
-- **TR2.2**: Network: **Local Hardhat network** for MVP (DECIDED)
-  - Start with local network for development and testing
-  - Can extend to testnets (Sepolia/Goerli) later if needed
+- **TR2.2**: Network: **Arc Testnet** for MVP
 - **TR2.3**: **DECIDED**: Ethereum client library: **`viem`**
-  - Rationale: strong TypeScript ergonomics and good primitives for querying/parsing event logs (matches the calldata-via-events storage model)
-- **TR2.4**: Gas optimization: Use events for data storage (cheaper than contract storage)
+  - Rationale: strong TypeScript ergonomics and contract read/write support
 
 ### TR5: Data Storage Location
 
-- **TR5.1**: **DECIDED**: Store encrypted data in **transaction calldata** via events
-- **TR5.2**: Rationale for calldata storage:
-  - **Cost**: Cheaper than contract storage (calldata is ~16 gas per byte vs 20,000 gas per 32-byte word for storage)
-  - **Permanence**: Calldata is permanently stored in transaction history
-  - **Accessibility**: Data accessible via event logs and transaction history
-  - **Immutability**: Data cannot be modified once stored
+- **TR5.1**: **DECIDED**: Store encrypted data in **contract storage** (mapping)
+- **TR5.2**: Rationale for storage:
+  - **Retrieval**: single view call (no log scanning)
+  - **Mutability**: re-store overwrites entry
 - **TR5.3**: Implementation approach:
-  - Smart contract function receives encrypted data as calldata parameter
-  - Contract emits event containing the encrypted data
-  - Data is stored in transaction calldata (part of transaction)
-  - Retrieval via event filtering (no contract storage needed)
-- **TR5.4**: Trade-offs considered:
-  - **Calldata** (selected): Cheaper, permanent, accessible via events
-  - **Contract Storage**: More expensive, mutable (can be updated), requires storage slots
-  - **Events Only**: Similar to calldata, but events have size limits and are indexed differently
-- **TR5.5**: Calldata size limits:
-  - Maximum transaction size: ~128KB (block gas limit dependent)
-  - For MVP: ~10KB per entry is well within limits
-  - Multiple entries require multiple transactions
+  - Smart contract writes encrypted data to mapping
+  - Contract emits event for indexing/history
+  - Retrieval via `getEncrypted(dataId, user)`
 
 ### TR3: Data Format
 
@@ -189,24 +164,9 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### TR4: Key Storage
 
-- **TR4.1**: Store keys in `keys/` directory (gitignored)
-- **TR4.2**: **DECIDED**: Format: **JSON with metadata**
-  - Human-readable for debugging
-  - Easy to parse and validate
-  - Includes structured metadata
-- **TR4.3**: File naming: `<dataId>.key.json`
-- **TR4.4**: JSON structure:
-
-  ```json
-  {
-    "version": 1,
-    "algorithm": "Kyber-768+AES-256-GCM",
-    "publicKey": "hex-encoded-public-key",
-    "secretKey": "hex-encoded-secret-key",
-    "created": "ISO-8601-timestamp",
-    "securityLevel": "Kyber-768"
-  }
-  ```
+- **TR4.1**: Keys are derived in-browser from passphrase + identifier
+- **TR4.2**: No key files required in the browser flow
+- **TR4.3**: Optional debug export may use JSON (non-requirement)
 
 ## Security Requirements
 
@@ -222,8 +182,8 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 ### SR2: Key Security
 
 - **SR2.1**: Keys never transmitted to blockchain
-- **SR2.2**: Keys stored locally with appropriate file permissions
-- **SR2.3**: Optional: Encrypt stored keys with password (future enhancement)
+- **SR2.2**: Keys are derived in-memory; not persisted by the web UI
+- **SR2.3**: Passphrase strength is critical (PBKDF2-based derivation)
 - **SR2.4**: Support key rotation (future enhancement)
 
 ### SR3: Data Integrity
@@ -235,8 +195,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 ### SR4: Privacy
 
 - **SR4.1**: Only encrypted data on-chain (no plaintext metadata)
-- **SR4.2**: Data IDs should not reveal content
-- **SR4.3**: Consider using hash of data ID instead of plain identifier
+- **SR4.2**: Data IDs should not be enumerable (keyed HMAC of identifier)
 
 ## Non-Functional Requirements
 
@@ -248,13 +207,13 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### NFR2: Usability
 
-- **NFR2.1**: Simple CLI commands (max 2-3 arguments)
+- **NFR2.1**: Simple browser workflow (passphrase + identifier + wallet)
 - **NFR2.2**: Clear error messages
 - **NFR2.3**: Helpful documentation and examples
 
 ### NFR3: Compatibility
 
-- **NFR3.1**: Support Node.js 16+
+- **NFR3.1**: Support Node.js 18+ (ESM + mlkem)
 - **NFR3.2**: Cross-platform (macOS, Linux, Windows)
 - **NFR3.3**: Algorithm versioning for future updates
 
@@ -270,17 +229,17 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 - Post-quantum key generation (Kyber-768)
 - Hybrid encryption (Kyber-768 + AES-256-GCM)
-- Smart contract with event-based storage (calldata)
-- Basic CLI for encrypt/store/retrieve/decrypt
-- Key management (local file storage in JSON format)
+- Smart contract with storage-based retrieval (`getEncrypted`)
+- Browser UI for encrypt/store/retrieve/decrypt
+- CLI for testing and debugging
 - Single user per wallet
 - Data size limit: ~10KB per entry
-- Event-based data retrieval
+- Direct storage retrieval (view call)
 
 ### Excluded from MVP (Future)
 
-- Password-based key derivation
-- Key encryption for stored keys
+- Forward secrecy
+- Password-based key derivation beyond PBKDF2 (e.g., Argon2id)
 - Multi-user sharing/access control
 - Data compression
 - Chunking for large files
@@ -318,22 +277,14 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### Decision 5: Data ID Generation
 
-- **Hash of user-provided string** (DECIDED)
-- User-friendly: users can use meaningful identifiers
-- Deterministic: same string always produces same ID
-- Example: `ethers.id("my-secret")` → bytes32
-- Implementation: Use ethers.js `id()` function or keccak256 hash
+- **Keyed HMAC of user-provided identifier** (DECIDED)
+- Prevents enumeration of low-entropy identifiers
+- Deterministic given passphrase + identifier
 
 ### Decision 6: Storage Location
 
-- **Transaction calldata** (DECIDED)
-- Store encrypted data in transaction calldata via smart contract events
-- Advantages:
-  - Lower gas costs compared to contract storage
-  - Permanent storage in transaction history
-  - Accessible via event logs
-  - Immutable once stored
-- Implementation: Contract function emits event with encrypted data in calldata
+- **Contract storage** (DECIDED)
+- Store encrypted data in contract mapping; emit event for history
 
 ## Implementation Phases
 
@@ -355,18 +306,17 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 
 ### Phase 3: Smart Contract
 
-1. Design and implement contract with event-based storage (calldata)
-2. Implement function to emit events containing encrypted data
-3. Add view functions for querying event data (if needed)
+1. Design and implement contract with storage mapping
+2. Emit event for indexing/history
+3. Add `getEncrypted` view function
 4. Deploy and test on local Hardhat network
 5. Verify gas costs (should be lower than storage-based approach)
 
 ### Phase 4: Client Integration
 
-1. CLI script for encryption and storage (via contract function call)
-2. CLI script for retrieval (querying events from blockchain)
-3. Event filtering and parsing utilities
-4. Key management utilities
+1. Browser UI for encryption/storage/retrieval (Arc Testnet)
+2. CLI scripts for testing and debugging
+3. Key derivation via passphrase + identifier
 5. Error handling and validation
 
 ### Phase 5: Documentation & Testing
