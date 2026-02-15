@@ -27,8 +27,8 @@ contract EncryptedStorage {
         uint256 timestamp;
     }
 
-    /// @dev user => dataId => Entry
-    mapping(address => mapping(bytes32 => Entry)) private entries;
+    /// @dev dataId => Entry (keyed solely by keyed data identifier)
+    mapping(bytes32 => Entry) private entries;
 
     /**
      * @notice Event emitted when encrypted data is stored (for indexing / history).
@@ -56,7 +56,7 @@ contract EncryptedStorage {
         require(encryptedData.length != 0, "encryptedData cannot be empty");
         require(encryptedData.length <= MAX_ENCRYPTED_DATA_BYTES, "encryptedData too large");
 
-        entries[msg.sender][dataId] = Entry({
+        entries[dataId] = Entry({
             encryptedData: encryptedData,
             timestamp: block.timestamp
         });
@@ -65,17 +65,16 @@ contract EncryptedStorage {
     }
 
     /**
-     * @notice Retrieve the encrypted payload for a given (user, dataId) pair.
-     * @param dataId The identifier used when storing
-     * @param user The address that stored the data
+     * @notice Retrieve the encrypted payload for a given dataId.
+     * @param dataId The keyed data identifier used when storing
      * @return encryptedData The stored encrypted payload (empty bytes if nothing stored)
      * @return timestamp The block timestamp when it was stored (0 if nothing stored)
      */
-    function getEncrypted(bytes32 dataId, address user) external view returns (
+    function getEncrypted(bytes32 dataId) external view returns (
         bytes memory encryptedData,
         uint256 timestamp
     ) {
-        Entry storage entry = entries[user][dataId];
+        Entry storage entry = entries[dataId];
         return (entry.encryptedData, entry.timestamp);
     }
 }

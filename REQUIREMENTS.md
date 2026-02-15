@@ -98,15 +98,15 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - **FR3.1**: Store encrypted data in **contract storage** (mapping)
 - **FR3.2**: Emit events containing encrypted data and metadata
   - Event structure: `DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)`
-- **FR3.3**: Support multiple entries per user (identified by unique dataId)
-- **FR3.4**: Retrieve data via `getEncrypted(dataId, user)` view function
+- **FR3.3**: Support multiple entries keyed by unique dataId
+- **FR3.4**: Retrieve data via `getEncrypted(dataId)` view function
 - **FR3.5**: Maximum data size: ~10KB per entry (gas and contract limit)
 - **FR3.6**: Data is mutable: re-storing overwrites previous entry for the same dataId
 
 ### FR4: Decryption
 
 - **FR4.1**: Retrieve encrypted data from contract storage (view call)
-- **FR4.2**: Lookup uses user address + dataId
+- **FR4.2**: Lookup uses dataId only
 - **FR4.4**: Decapsulate shared secret using Kyber secret key
 - **FR4.5**: Derive AES key from shared secret
 - **FR4.6**: Decrypt data using AES-256-GCM
@@ -142,7 +142,7 @@ Build an MVP system for encrypting and storing data on the Ethereum blockchain u
 - **TR5.3**: Implementation approach:
   - Smart contract writes encrypted data to mapping
   - Contract emits event for indexing/history
-  - Retrieval via `getEncrypted(dataId, user)`
+  - Retrieval via `getEncrypted(dataId)`
 
 ### TR3: Data Format
 

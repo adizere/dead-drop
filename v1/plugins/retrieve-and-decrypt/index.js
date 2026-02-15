@@ -30,12 +30,6 @@ export default {
         defaultValue: undefined,
       })
       .addOption({
-        name: "user",
-        description: "User address to read data for (defaults to the connected account)",
-        type: ArgumentType.STRING_WITHOUT_DEFAULT,
-        defaultValue: undefined,
-      })
-      .addOption({
         name: "out",
         description: "Write plaintext to file instead of stdout",
         type: ArgumentType.FILE_WITHOUT_DEFAULT,

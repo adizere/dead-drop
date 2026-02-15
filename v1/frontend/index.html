@@ -253,7 +253,7 @@
     <!-- ── SECTION 0: ACCESS ── -->
     <div class="section-header">
       <h2>Section 0 &mdash; Access</h2>
-      <div class="note">Passphrase + identifier required &rarr;</div>
+      <div class="note">Passphrase + identifier (unlock to retrieve or store) &rarr;</div>
     </div>
 
     <div class="input-row">
@@ -275,7 +275,7 @@
     <!-- ── SECTION 1: RETRIEVE ── -->
     <div class="section-header">
       <h2>Section 1 &mdash; Retrieve</h2>
-      <div class="note">Read-only, no gas &rarr;</div>
+      <div class="note">Passphrase + identifier only (no wallet, no gas) &rarr;</div>
     </div>
 
     <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
@@ -365,7 +365,6 @@
         stateMutability: "view",
         inputs: [
           { name: "dataId", type: "bytes32" },
-          { name: "user", type: "address" },
         ],
         outputs: [
           { name: "encryptedData", type: "bytes" },
@@ -634,7 +633,7 @@
     // ═════════════════════════════════════════════════════════════════
     // RETRIEVE & DECRYPT
     // ═════════════════════════════════════════════════════════════════
-    async function retrieveAndDecrypt(identifier, userAddr) {
+    async function retrieveAndDecrypt(identifier) {
       if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
 
       const normalizedId = normalizeIdentifier(identifier);
@@ -646,10 +645,10 @@
         client: publicClient,
       });
 
-      const [encData, timestamp] = await contract.read.getEncrypted([dataId, userAddr]);
+      const [encData, timestamp] = await contract.read.getEncrypted([dataId]);
 
       if (!encData || encData === "0x") {
-        throw new Error(`No data found for "${identifier}" / ${userAddr}.`);
+        throw new Error(`No data found for "${identifier}".`);
       }
 
       const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(encData));
@@ -786,7 +785,7 @@
     }
 
     async function checkExistingData() {
-      if (!account || !isUnlocked() || !accessIdEl.value.trim()) return;
+      if (!isUnlocked() || !accessIdEl.value.trim()) return;
       try {
         const normalizedId = normalizeIdentifier(accessIdEl.value);
         const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
@@ -795,7 +794,7 @@
           abi: ABI,
           client: publicClient,
         });
-        const [encData] = await contract.read.getEncrypted([dataId, account]);
+        const [encData] = await contract.read.getEncrypted([dataId]);
         if (encData && encData !== "0x") {
           setStatus(
             passphraseStatEl,
@@ -832,12 +831,10 @@
       if (!account) {
         setStatus(
           passphraseStatEl,
-          "Unlocked. Connect wallet to check for existing data or store.",
+          "Unlocked. Connect wallet to store; you can retrieve without a wallet.",
           "success",
         );
-        return;
       }
-
       await checkExistingData();
     }
 
@@ -899,18 +896,13 @@
     retrieveBtnEl.addEventListener("click", async () => {
       const id   = accessIdEl.value.trim();
       if (!id) return;
-      if (!account) {
-        setStatus(retrieveStatEl, "ERR: connect wallet to select user address", "error");
-        return;
-      }
-      const user = account;
 
       retrieveBtnEl.disabled = true;
       setStatus(retrieveStatEl, "Retrieving\u2026");
       setOutput("");
 
       try {
-        const { text, timestamp } = await retrieveAndDecrypt(id, user);
+        const { text, timestamp } = await retrieveAndDecrypt(id);
         setOutput(text);
         const when = timestamp
           ? new Date(timestamp * 1000).toISOString()

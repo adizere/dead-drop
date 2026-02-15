@@ -62,7 +62,6 @@ async function storeAndFetchEncryptedData({ dataId, packedPayload }) {
   const { encryptedData } = await getEncryptedData({
     contract,
     dataId,
-    user: account,
   });
 
   return { contractAddress: contract.address, dataId, encryptedDataHex: encryptedData };

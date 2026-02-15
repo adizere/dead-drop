@@ -18,9 +18,9 @@ v1 fixes all of this by storing data in **contract state** (a Solidity mapping).
 
 | Aspect | v0 | v1 |
 | --- | --- | --- |
-| **Contract** | `EncryptedCalldataStorage` -- emit-only, no storage | `EncryptedStorage` -- writes to `mapping(address => mapping(bytes32 => Entry))` |
+| **Contract** | `EncryptedCalldataStorage` -- emit-only, no storage | `EncryptedStorage` -- writes to `mapping(bytes32 => Entry)` |
 | **Store** | `storeEncrypted(dataId, data)` emits event | Same signature, but also writes to storage |
-| **Retrieve** | Scan `DataStored` event logs (`getLogs` / `cast`) | `getEncrypted(dataId, user)` view function |
+| **Retrieve** | Scan `DataStored` event logs (`getLogs` / `cast`) | `getEncrypted(dataId)` view function |
 | **Mutability** | Immutable (each store is a new event) | Mutable (re-storing overwrites the entry) |
 | **`src/events.js`** | 145 lines: `cast` subprocess, hardcoded block ranges, event decoding | **Deleted** -- replaced by `src/storage.js` (~25 lines) |
 | **CLI options** | `--rpcUrl`, `--fromBlock` needed for retrieval | Removed (not needed) |
@@ -56,7 +56,7 @@ v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, 
 | **Dependencies** | No `node_modules` -- ESM imports from `esm.sh` at runtime: [`viem@2`](https://viem.sh) (Ethereum client) and [`mlkem@1`](https://github.com/nickovs/mlkem) (ML-KEM-768) |
 | **Crypto** | ML-KEM-768 encap/decap via `mlkem`; AES-256-GCM + HKDF-SHA256 via the native Web Crypto API. Same protocol and payload format as the CLI |
 | **Wallet** | MetaMask (EIP-1193 `window.ethereum`); auto-switches to Arc Testnet (chain 5042002) if needed |
-| **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store, `getEncrypted` view call for retrieval |
+| **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store (wallet required), `getEncrypted(dataId)` view call for retrieval (no wallet) |
 | **Key management** | Per-secret ML-KEM keypair derived from passphrase + identifier in the browser (no keys stored on server or chain) |
 | **UI** | Brutalist monospace theme; Access section (passphrase + identifier), Retrieve first, Store second |
 | **Identifier normalization** | `idString.trim().normalize("NFC")` before keyed derivation; case-sensitive, empty identifiers rejected |
@@ -81,7 +81,7 @@ For each identifier, the ML-KEM-768 keypair is derived deterministically:
 ### Gating rules
 
 - **Store** requires passphrase + identifier + wallet (gas paid).
-- **Retrieve** requires passphrase + identifier (wallet connection supplies the user address; no gas).
+- **Retrieve** requires passphrase + identifier only (no wallet; no gas).
 
 ### Forward secrecy
 
@@ -103,7 +103,7 @@ From `v1/`:
 
 ```shell
 npm install
-npm test              # run all tests (15 passing)
+npm test              # run all tests
 ```
 
 ### Encrypt and store, assuming Arc testnet

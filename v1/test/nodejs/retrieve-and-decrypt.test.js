@@ -54,7 +54,6 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
       contract: contract.address,
       id,
       passphrase,
-      user: account,
       format: "utf8",
     },
     { network, __sharedConnection: connection },

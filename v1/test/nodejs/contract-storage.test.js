@@ -24,7 +24,7 @@ test("EncryptedStorage stores and retrieves data via getEncrypted()", async () =
   void receipt;
 
   // Retrieve via view function (the core v1 improvement)
-  const [storedData, timestamp] = await contract.read.getEncrypted([dataId, account]);
+  const [storedData, timestamp] = await contract.read.getEncrypted([dataId]);
 
   assert.equal(storedData, encryptedData);
   assert.ok(typeof timestamp === "bigint");
@@ -92,7 +92,7 @@ test("EncryptedStorage accepts an encrypted payload sized for ~10KB plaintext se
   });
 
   // Retrieve via view function
-  const [storedData] = await contract.read.getEncrypted([dataId, account]);
+  const [storedData] = await contract.read.getEncrypted([dataId]);
 
   // Hex string length = 2 ("0x") + payloadBytes*2
   assert.equal(storedData.length, 2 + payloadBytes * 2);
@@ -137,12 +137,12 @@ test("EncryptedStorage overwrites previous entry for the same dataId", async () 
 
   await contract.write.storeEncrypted([dataId, data1], { account });
 
-  const [stored1] = await contract.read.getEncrypted([dataId, account]);
+  const [stored1] = await contract.read.getEncrypted([dataId]);
   assert.equal(stored1, data1);
 
   await contract.write.storeEncrypted([dataId, data2], { account });
 
-  const [stored2] = await contract.read.getEncrypted([dataId, account]);
+  const [stored2] = await contract.read.getEncrypted([dataId]);
   assert.equal(stored2, data2);
 });
 
@@ -156,8 +156,31 @@ test("EncryptedStorage returns empty bytes for non-existent entries", async () =
 
   const dataId = keccak256(toBytes("does-not-exist"));
 
-  const [storedData, timestamp] = await contract.read.getEncrypted([dataId, account]);
+  const [storedData, timestamp] = await contract.read.getEncrypted([dataId]);
 
   assert.equal(storedData, "0x");
   assert.equal(timestamp, 0n);
+});
+
+test("EncryptedStorage: same dataId from different accounts yields single entry (second overwrites)", async () => {
+  const { viem } = await network.connect();
+
+  const [walletClient] = await viem.getWalletClients();
+  const addresses = await walletClient.getAddresses();
+  const [account0, account1] = addresses;
+  assert.ok(account0 && account1, "need at least two accounts");
+
+  const contract = await viem.deployContract("EncryptedStorage");
+
+  const dataId = keccak256(toBytes("shared-dataId"));
+  const data1 = toHex(new Uint8Array([1, 1, 1]));
+  const data2 = toHex(new Uint8Array([2, 2, 2]));
+
+  await contract.write.storeEncrypted([dataId, data1], { account: account0 });
+  const [afterFirst] = await contract.read.getEncrypted([dataId]);
+  assert.equal(afterFirst, data1);
+
+  await contract.write.storeEncrypted([dataId, data2], { account: account1 });
+  const [afterSecond] = await contract.read.getEncrypted([dataId]);
+  assert.equal(afterSecond, data2);
 });

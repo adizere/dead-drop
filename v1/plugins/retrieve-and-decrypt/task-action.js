@@ -22,12 +22,13 @@ import { getKemCiphertextSize } from "../../src/pqclean.js";
  * Hardhat task action: retrieve and decrypt.
  *
  * Returns decrypted bytes (Buffer) for programmatic usage.
+ * Retrieval uses only dataId (no wallet or user address required).
  *
- * @param {{ id?: string, dataId?: string, contract: string, passphrase?: string, user?: string, out?: string, format?: string }} args
+ * @param {{ id?: string, dataId?: string, contract: string, passphrase?: string, out?: string, format?: string }} args
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function retrieveAndDecryptAction(args, hre) {
-  const { id, dataId: dataIdArg, contract, passphrase, user, out, format = "utf8" } = args;
+  const { id, dataId: dataIdArg, contract, passphrase, out, format = "utf8" } = args;
 
   if (!contract) throw new Error("Missing required option: --contract");
   if (!id) throw new Error("Missing required option: --id");
@@ -42,16 +43,12 @@ export default async function retrieveAndDecryptAction(args, hre) {
   // may yield isolated connections. Allow tests (and advanced callers) to inject a shared
   // connection to ensure we query the same chain state.
   const { viem } = hre.__sharedConnection ?? (await hre.network.connect());
-  const [walletClient] = await viem.getWalletClients();
-  const [account] = await walletClient.getAddresses();
-  const filterUser = user ?? account;
 
   const storage = await viem.getContractAt("EncryptedStorage", contract);
 
   const { encryptedData } = await getEncryptedData({
     contract: storage,
     dataId,
-    user: filterUser,
   });
 
   const packed = Buffer.from(hexToBytes(encryptedData));

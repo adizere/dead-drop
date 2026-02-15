@@ -6,19 +6,17 @@
  *
  * @param {object} params
  * @param {any} params.contract - viem contract instance for EncryptedStorage
- * @param {`0x${string}`} params.dataId - bytes32 data identifier
- * @param {`0x${string}`} params.user - address that stored the data
+ * @param {`0x${string}`} params.dataId - bytes32 data identifier (keyed)
  * @returns {Promise<{ encryptedData: `0x${string}`, timestamp: bigint }>}
  */
-export async function getEncryptedData({ contract, dataId, user }) {
+export async function getEncryptedData({ contract, dataId }) {
   const [encryptedData, timestamp] = await contract.read.getEncrypted([
     dataId,
-    user,
   ]);
 
   if (!encryptedData || encryptedData === "0x") {
     throw new Error(
-      `No data found for dataId=${dataId} user=${user} on contract=${contract.address}`,
+      `No data found for dataId=${dataId} on contract=${contract.address}`,
     );
   }
 

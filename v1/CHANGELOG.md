@@ -3,6 +3,10 @@
 Version 1 started off with the design as outlined in the [Readme.md](./README.md) and then
 accumulated a few revisions, as follows.
 
+## Index by dataId only (no user/wallet for retrieval)
+
+Entries are now indexed and retrieved solely by the keyed data identifier (`dataId`). The contract uses a single mapping `mapping(bytes32 => Entry)` and exposes `getEncrypted(dataId)` (no user address). Retrieval no longer requires a wallet or user address — passphrase + identifier is enough. **Breaking:** existing deployments used `(user, dataId)`; deploy a new contract and re-store for this version. Overwriting the same `dataId` is unlikely in practice because `dataId` is keyed by passphrase (same passphrase + identifier required to collide).
+
 ## Moved away from keys
 
 Key handling and data IDs were reworked to match the last three revisions:
