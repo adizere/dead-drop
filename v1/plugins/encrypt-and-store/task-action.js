@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import PQCleanMod from "pqclean";
 import { toHex } from "viem";
+import { MlKem768 } from "mlkem";
 
 import { aes256GcmEncrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
 import {
@@ -11,13 +11,14 @@ import {
   HKDF_SALT,
   PROTOCOL_VERSION,
   buildAad,
-  computeDataId,
+  computeDataIdKeyed,
+  deriveKemSeedBytes,
+  deriveKeyIdBytes,
+  deriveMasterKeyBytes,
+  normalizeIdentifier,
   packEncryptedPayload,
 } from "../../src/protocol.js";
-import { defaultKeysPath, readKeysFile, writeKeysFile } from "../../src/keyfile.js";
-import { importKemPublicKey } from "../../src/pqclean.js";
-
-const PQClean = PQCleanMod?.default ?? PQCleanMod;
+import { writeKeysFile } from "../../src/keyfile.js";
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -30,42 +31,13 @@ function readPlaintext({ message, file }) {
 }
 
 /**
- * Load an existing keypair from disk, or generate a fresh one.
- *
- * When the key file already exists it is reused (same keypair for many
- * secrets).  When it doesn't exist a new ML-KEM-768 keypair is generated and
- * written to `keysPath`.
- *
- * @returns {{ publicKey: import("pqclean").KemPublicKey, exportedPublicKey: string, exportedPrivateKey: string, keysPath: string, reused: boolean }}
- */
-async function resolveKeypair(keysPath) {
-  if (fs.existsSync(keysPath)) {
-    const keyJson = readKeysFile(keysPath);
-    const publicKey = importKemPublicKey(keyJson.publicKey);
-    return {
-      publicKey,
-      exportedPublicKey: keyJson.publicKey,
-      exportedPrivateKey: keyJson.privateKey,
-      keysPath,
-      reused: true,
-    };
-  }
-
-  const { publicKey, privateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
-  const exportedPublicKey = toHex(Buffer.from(await publicKey.export()));
-  const exportedPrivateKey = toHex(Buffer.from(await privateKey.export()));
-
-  return { publicKey, exportedPublicKey, exportedPrivateKey, keysPath, reused: false };
-}
-
-/**
  * Hardhat task action: encrypt and store.
  *
- * @param {{ id: string, message?: string, file?: string, contract?: string, keysOut?: string }} args
+ * @param {{ id: string, passphrase?: string, message?: string, file?: string, contract?: string, keysOut?: string }} args
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function encryptAndStoreAction(args, hre) {
-  const { id, message, file, contract, keysOut } = args;
+  const { id, passphrase, message, file, contract, keysOut } = args;
 
   if (!id) throw new Error("Missing required option: --id");
   if (message === undefined && file === undefined) {
@@ -82,15 +54,19 @@ export default async function encryptAndStoreAction(args, hre) {
     throw new Error(`Plaintext too large: ${plaintext.length} bytes (max 10240 bytes)`);
   }
 
-  const dataId = computeDataId(id);
+  if (!passphrase) throw new Error("Missing required option: --passphrase");
 
-  // Resolve keypair: reuse existing default key or generate a fresh one.
-  const keysPath = keysOut ? path.resolve(keysOut) : defaultKeysPath();
-  const { publicKey, exportedPublicKey, exportedPrivateKey, reused } =
-    await resolveKeypair(keysPath);
+  const normalizedId = normalizeIdentifier(id);
+  const masterKeyBytes = deriveMasterKeyBytes(passphrase);
+  const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
+  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+
+  const kem = new MlKem768();
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
+  const [publicKey, privateKey] = await kem.deriveKeyPair(seed);
 
   // Encapsulate (public key): produces shared secret + KEM ciphertext.
-  const { key: kemSharedSecret, encryptedKey: kemCiphertext } = await publicKey.generateKey();
+  const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
 
   // Derive AES-256 key from KEM shared secret.
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, {
@@ -123,13 +99,14 @@ export default async function encryptAndStoreAction(args, hre) {
   const payloadHex = toHex(packed);
   const txHash = await storage.write.storeEncrypted([dataId, payloadHex], { account });
 
-  // Save keys locally when a fresh keypair was generated.
-  if (!reused) {
+  // Save keys locally when requested (debugging only).
+  if (keysOut) {
+    const keysPath = path.resolve(keysOut);
     ensureDir(path.dirname(keysPath));
     writeKeysFile({
       keysPath,
-      publicKey: exportedPublicKey,
-      privateKey: exportedPrivateKey,
+      publicKey: toHex(publicKey),
+      privateKey: toHex(privateKey),
     });
   }
 

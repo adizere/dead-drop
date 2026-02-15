@@ -246,46 +246,36 @@
       <div class="row">Network .......... Arc Testnet (5042002)</div>
       <div class="row">Contract ......... <span id="meta-contract">0x&hellip;</span></div>
       <div class="row">Protocol ......... ML-KEM-768 + AES-256-GCM</div>
-      <div class="row">Key .............. default.key.json (hardcoded)</div>
+      <div class="row">Key .............. <span id="meta-key">locked (passphrase required)</span></div>
     </div>
     <hr class="thin">
 
-    <!-- ── SECTION 1: STORE ── -->
+    <!-- ── SECTION 0: ACCESS ── -->
     <div class="section-header">
-      <h2>Section 1 &mdash; Store</h2>
-      <div class="note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
-    </div>
-
-    <label for="store-id">Identifier</label>
-    <input type="text" id="store-id" placeholder="e.g. my-note">
-
-    <label>Message</label>
-    <div class="editor" id="msg-editor">
-      <div class="gutter" id="msg-gutter"></div>
-      <textarea id="store-msg" rows="8"
-        placeholder="plaintext to encrypt and store on-chain"></textarea>
-    </div>
-
-    <button class="btn btn-primary" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
-    <div class="status" id="store-status"></div>
-
-    <hr class="thin">
-
-    <!-- ── SECTION 2: RETRIEVE ── -->
-    <div class="section-header">
-      <h2>Section 2 &mdash; Retrieve</h2>
-      <div class="note">Read-only, no gas &rarr;</div>
+      <h2>Section 0 &mdash; Access</h2>
+      <div class="note">Passphrase + identifier required &rarr;</div>
     </div>
 
     <div class="input-row">
       <div>
-        <label for="retrieve-id">Identifier</label>
-        <input type="text" id="retrieve-id" placeholder="e.g. my-note">
+        <label for="passphrase">Passphrase</label>
+        <input type="password" id="passphrase" placeholder="enter passphrase to unlock">
       </div>
       <div>
-        <label for="retrieve-user">User Address (optional)</label>
-        <input type="text" id="retrieve-user" placeholder="defaults to connected wallet">
+        <label for="access-id">Identifier</label>
+        <input type="text" id="access-id" placeholder="e.g. my-note">
       </div>
+    </div>
+
+    <button class="btn btn-outline" id="unlock-btn">Unlock &rarr;</button>
+    <div class="status" id="passphrase-status"></div>
+
+    <hr class="thin">
+
+    <!-- ── SECTION 1: RETRIEVE ── -->
+    <div class="section-header">
+      <h2>Section 1 &mdash; Retrieve</h2>
+      <div class="note">Read-only, no gas &rarr;</div>
     </div>
 
     <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
@@ -296,6 +286,24 @@
       <div class="gutter" id="out-gutter"></div>
       <div class="output-text placeholder" id="out-text">decrypted plaintext will appear here</div>
     </div>
+
+    <hr class="thin">
+
+    <!-- ── SECTION 2: STORE ── -->
+    <div class="section-header">
+      <h2>Section 2 &mdash; Store</h2>
+      <div class="note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
+    </div>
+
+    <label>Message</label>
+    <div class="editor" id="msg-editor">
+      <div class="gutter" id="msg-gutter"></div>
+      <textarea id="store-msg" rows="8"
+        placeholder="plaintext to encrypt and store on-chain"></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
+    <div class="status" id="store-status"></div>
 
     <hr>
     <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Shared Secret v1</div>
@@ -309,12 +317,14 @@
     // ─── CONFIGURATION ──────────────────────────────────────────────
     // Fill these in before use.
     const CONTRACT_ADDRESS  = "0x0000000000000000000000000000000000000000";
-    const DEFAULT_PUBLIC_KEY  = "0x"; // keys/default.key.json  .publicKey
-    const DEFAULT_PRIVATE_KEY = "0x"; // keys/default.key.json  .privateKey
 
     const ARC_RPC      = "https://rpc.testnet.arc.network";
     const ARC_CHAIN_ID = 5042002;
     const ARC_CHAIN_HEX = "0x" + ARC_CHAIN_ID.toString(16);
+
+    const PBKDF2_SALT = new TextEncoder().encode("shared-secret:v1");
+    const PBKDF2_ITERS = 600_000;
+    const HKDF_ID_SALT = new TextEncoder().encode("shared-secret:v1:hkdf");
 
     // ─── IMPORTS ────────────────────────────────────────────────────
     import {
@@ -323,7 +333,6 @@
       custom,
       http,
       getContract,
-      keccak256,
       toBytes,
       toHex,
       hexToBytes,
@@ -377,12 +386,65 @@
     // CRYPTO HELPERS
     // ═════════════════════════════════════════════════════════════════
 
-    /** keccak256(toBytes(id)) — same as v1/src/protocol.js computeDataId */
-    function computeDataId(idString) {
+    function normalizeIdentifier(idString) {
       if (typeof idString !== "string") throw new Error("Identifier must be a string");
       const normalized = idString.trim().normalize("NFC");
       if (!normalized) throw new Error("Identifier cannot be empty");
-      return keccak256(toBytes(normalized));
+      return normalized;
+    }
+
+    async function deriveMasterKeyBytes(passphrase) {
+      const passKey = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(passphrase),
+        "PBKDF2",
+        false,
+        ["deriveBits"],
+      );
+      const bits = await crypto.subtle.deriveBits(
+        { name: "PBKDF2", hash: "SHA-256", salt: PBKDF2_SALT, iterations: PBKDF2_ITERS },
+        passKey,
+        256,
+      );
+      return new Uint8Array(bits);
+    }
+
+    async function hkdfBytes(ikmBytes, infoBytes, length) {
+      const ikmKey = await crypto.subtle.importKey(
+        "raw",
+        ikmBytes,
+        "HKDF",
+        false,
+        ["deriveBits"],
+      );
+      const bits = await crypto.subtle.deriveBits(
+        { name: "HKDF", hash: "SHA-256", salt: HKDF_ID_SALT, info: infoBytes },
+        ikmKey,
+        length * 8,
+      );
+      return new Uint8Array(bits);
+    }
+
+    async function deriveKeyIdBytes(masterKeyBytes) {
+      return hkdfBytes(masterKeyBytes, new TextEncoder().encode("id-key"), 32);
+    }
+
+    async function deriveKemSeedBytes(masterKeyBytes, normalizedId) {
+      return hkdfBytes(masterKeyBytes, new TextEncoder().encode(`kem:${normalizedId}`), 64);
+    }
+
+    async function computeDataIdKeyed(normalizedId, keyIdBytes) {
+      const hmacKey = await crypto.subtle.importKey(
+        "raw",
+        keyIdBytes,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const mac = new Uint8Array(
+        await crypto.subtle.sign("HMAC", hmacKey, toBytes(normalizedId)),
+      );
+      return toHex(mac.slice(0, 32));
     }
 
     /** AAD = [version, algId] || dataIdBytes */
@@ -471,8 +533,8 @@
     // ═════════════════════════════════════════════════════════════════
     const kem = new MlKem768();
 
-    function pubKeyBytes()  { return hexToBytes(DEFAULT_PUBLIC_KEY); }
-    function privKeyBytes() { return hexToBytes(DEFAULT_PRIVATE_KEY); }
+    let masterKeyBytes = null;
+    let keyIdBytes = null;
 
     // ═════════════════════════════════════════════════════════════════
     // ETHEREUM CLIENTS
@@ -528,8 +590,10 @@
     // ═════════════════════════════════════════════════════════════════
     async function encryptAndStore(identifier, message) {
       if (!account) throw new Error("Wallet not connected.");
+      if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
 
-      const dataId    = computeDataId(identifier);
+      const normalizedId = normalizeIdentifier(identifier);
+      const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
       const plaintext = new TextEncoder().encode(message);
 
       if (plaintext.length > 10_240) {
@@ -537,7 +601,9 @@
       }
 
       // 1. ML-KEM-768 encapsulate
-      const [kemCt, sharedSecret] = await kem.encap(pubKeyBytes());
+      const seed = await deriveKemSeedBytes(masterKeyBytes, normalizedId);
+      const [publicKey] = await kem.deriveKeyPair(seed);
+      const [kemCt, sharedSecret] = await kem.encap(publicKey);
 
       // 2. Derive AES-256 key
       const aesKey = await deriveAesKey(sharedSecret, ["encrypt"]);
@@ -569,7 +635,10 @@
     // RETRIEVE & DECRYPT
     // ═════════════════════════════════════════════════════════════════
     async function retrieveAndDecrypt(identifier, userAddr) {
-      const dataId = computeDataId(identifier);
+      if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
+
+      const normalizedId = normalizeIdentifier(identifier);
+      const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
 
       const contract = getContract({
         address: CONTRACT_ADDRESS,
@@ -586,7 +655,9 @@
       const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(encData));
 
       // 1. ML-KEM-768 decapsulate
-      const sharedSecret = await kem.decap(kemCt, privKeyBytes());
+      const seed = await deriveKemSeedBytes(masterKeyBytes, normalizedId);
+      const [, privateKey] = await kem.deriveKeyPair(seed);
+      const sharedSecret = await kem.decap(kemCt, privateKey);
 
       // 2. Derive AES-256 key
       const aesKey = await deriveAesKey(sharedSecret, ["decrypt"]);
@@ -607,18 +678,20 @@
     const $ = (s) => document.querySelector(s);
 
     // Elements
-    const storeIdEl      = $("#store-id");
+    const passphraseEl   = $("#passphrase");
+    const accessIdEl     = $("#access-id");
+    const unlockBtnEl    = $("#unlock-btn");
+    const passphraseStatEl = $("#passphrase-status");
     const storeMsgEl     = $("#store-msg");
     const storeBtnEl     = $("#store-btn");
     const storeStatusEl  = $("#store-status");
-    const retrieveIdEl   = $("#retrieve-id");
-    const retrieveUserEl = $("#retrieve-user");
     const retrieveBtnEl  = $("#retrieve-btn");
     const retrieveStatEl = $("#retrieve-status");
     const outTextEl      = $("#out-text");
     const connectEl      = $("#connect-wallet-link");
     const footerEl       = $("#footer");
     const metaContractEl = $("#meta-contract");
+    const metaKeyEl      = $("#meta-key");
 
     // ── Contract display ────────────────────────────────────────────
     metaContractEl.textContent =
@@ -660,20 +733,37 @@
     });
 
     // ── Button state ────────────────────────────────────────────────
+    function isUnlocked() {
+      return !!masterKeyBytes && !!keyIdBytes;
+    }
+
     function syncStoreBtn() {
       storeBtnEl.disabled =
-        !account || !storeIdEl.value.trim() || !storeMsgEl.value.trim();
+        !isUnlocked() || !account || !accessIdEl.value.trim() || !storeMsgEl.value.trim();
     }
 
     function syncRetrieveBtn() {
-      const hasId   = !!retrieveIdEl.value.trim();
-      const hasUser = !!retrieveUserEl.value.trim() || !!account;
-      retrieveBtnEl.disabled = !hasId || !hasUser;
+      const hasId = !!accessIdEl.value.trim();
+      retrieveBtnEl.disabled = !isUnlocked() || !hasId;
     }
 
-    storeIdEl.addEventListener("input", syncStoreBtn);
-    retrieveIdEl.addEventListener("input", syncRetrieveBtn);
-    retrieveUserEl.addEventListener("input", syncRetrieveBtn);
+    passphraseEl.addEventListener("input", () => {
+      masterKeyBytes = null;
+      keyIdBytes = null;
+      metaKeyEl.textContent = "locked (passphrase required)";
+      setStatus(passphraseStatEl, "Locked. Enter passphrase and unlock.", "error");
+      syncStoreBtn();
+      syncRetrieveBtn();
+    });
+
+    accessIdEl.addEventListener("input", async () => {
+      syncStoreBtn();
+      syncRetrieveBtn();
+      if (isUnlocked()) {
+        setStatus(passphraseStatEl, "Identifier changed. Checking for existing data…");
+        await checkExistingData();
+      }
+    });
 
     // ── Status helpers ──────────────────────────────────────────────
     function setStatus(el, msg, cls) {
@@ -695,7 +785,76 @@
       refreshGutter(outTextEl, "out-gutter");
     }
 
+    async function checkExistingData() {
+      if (!account || !isUnlocked() || !accessIdEl.value.trim()) return;
+      try {
+        const normalizedId = normalizeIdentifier(accessIdEl.value);
+        const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
+        const contract = getContract({
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          client: publicClient,
+        });
+        const [encData] = await contract.read.getEncrypted([dataId, account]);
+        if (encData && encData !== "0x") {
+          setStatus(
+            passphraseStatEl,
+            "Existing data found. Go to Section 1 (Retrieve).",
+            "success",
+          );
+        } else {
+          setStatus(
+            passphraseStatEl,
+            "No data found. You can store a new secret in Section 2.",
+            "success",
+          );
+        }
+      } catch (err) {
+        setStatus(
+          passphraseStatEl,
+          "Unlocked. Could not check existing data.",
+          "error",
+        );
+      }
+    }
+
+    async function unlockWithPassphrase() {
+      const passphrase = passphraseEl.value;
+      const identifier = accessIdEl.value;
+      if (!passphrase) throw new Error("Passphrase is required.");
+      if (!identifier || !identifier.trim()) throw new Error("Identifier is required.");
+      setStatus(passphraseStatEl, "Deriving keys…");
+      masterKeyBytes = await deriveMasterKeyBytes(passphrase);
+      keyIdBytes = await deriveKeyIdBytes(masterKeyBytes);
+      metaKeyEl.textContent = "unlocked (per-secret derived)";
+      setStatus(passphraseStatEl, "Unlocked. Checking for existing data…");
+
+      if (!account) {
+        setStatus(
+          passphraseStatEl,
+          "Unlocked. Connect wallet to check for existing data or store.",
+          "success",
+        );
+        return;
+      }
+
+      await checkExistingData();
+    }
+
     // ── Connect wallet ──────────────────────────────────────────────
+    unlockBtnEl.addEventListener("click", async () => {
+      try {
+        unlockBtnEl.disabled = true;
+        await unlockWithPassphrase();
+      } catch (err) {
+        setStatus(passphraseStatEl, "ERR: " + err.message, "error");
+      } finally {
+        unlockBtnEl.disabled = false;
+        syncStoreBtn();
+        syncRetrieveBtn();
+      }
+    });
+
     connectEl.addEventListener("click", async (e) => {
       e.preventDefault();
       try {
@@ -705,6 +864,7 @@
         updateFooter();
         syncStoreBtn();
         syncRetrieveBtn();
+        await checkExistingData();
       } catch (err) {
         connectEl.textContent = "Connect wallet \u2192";
         setStatus(storeStatusEl, "ERR: " + err.message, "error");
@@ -713,7 +873,7 @@
 
     // ── Store action ────────────────────────────────────────────────
     storeBtnEl.addEventListener("click", async () => {
-      const id  = storeIdEl.value.trim();
+      const id  = accessIdEl.value.trim();
       const msg = storeMsgEl.value;
       if (!id || !msg) return;
 
@@ -737,9 +897,13 @@
 
     // ── Retrieve action ─────────────────────────────────────────────
     retrieveBtnEl.addEventListener("click", async () => {
-      const id   = retrieveIdEl.value.trim();
-      const user = retrieveUserEl.value.trim() || account;
-      if (!id || !user) return;
+      const id   = accessIdEl.value.trim();
+      if (!id) return;
+      if (!account) {
+        setStatus(retrieveStatEl, "ERR: connect wallet to select user address", "error");
+        return;
+      }
+      const user = account;
 
       retrieveBtnEl.disabled = true;
       setStatus(retrieveStatEl, "Retrieving\u2026");
@@ -761,6 +925,7 @@
 
     // ── Init ────────────────────────────────────────────────────────
     updateFooter();
+    setStatus(passphraseStatEl, "Locked. Enter passphrase and unlock.", "error");
     syncStoreBtn();
     syncRetrieveBtn();
 

@@ -13,20 +13,20 @@ export default {
       })
       .addOption({
         name: "id",
-        description: "Identifier string (hashed to bytes32 dataId). Optional if --dataId provided",
+        description: "Identifier string used with passphrase to derive dataId",
+        type: ArgumentType.STRING_WITHOUT_DEFAULT,
+        defaultValue: undefined,
+      })
+      .addOption({
+        name: "passphrase",
+        description: "Passphrase used to derive keyed dataId + per-secret keys",
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })
       .addOption({
         name: "dataId",
-        description: "bytes32 hex dataId (0x...). Optional if --id provided",
+        description: "Override derived bytes32 dataId (0x...)",
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
-        defaultValue: undefined,
-      })
-      .addOption({
-        name: "keys",
-        description: "Path to key JSON file (default: keys/default.key.json)",
-        type: ArgumentType.FILE_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })
       .addOption({

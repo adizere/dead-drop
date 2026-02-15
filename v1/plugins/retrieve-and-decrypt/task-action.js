@@ -1,39 +1,42 @@
 import fs from "node:fs";
 
 import { hexToBytes } from "viem";
+import { MlKem768 } from "mlkem";
 
 import { aes256GcmDecrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
-import { defaultKeysPath, readKeysFile } from "../../src/keyfile.js";
 import { getEncryptedData } from "../../src/storage.js";
 import {
   HKDF_INFO,
   HKDF_SALT,
   buildAad,
-  computeDataId,
+  computeDataIdKeyed,
+  deriveKemSeedBytes,
+  deriveKeyIdBytes,
+  deriveMasterKeyBytes,
+  normalizeIdentifier,
   unpackEncryptedPayload,
 } from "../../src/protocol.js";
-import { getKemCiphertextSize, importKemPrivateKey } from "../../src/pqclean.js";
+import { getKemCiphertextSize } from "../../src/pqclean.js";
 
 /**
  * Hardhat task action: retrieve and decrypt.
  *
  * Returns decrypted bytes (Buffer) for programmatic usage.
  *
- * @param {{ id?: string, dataId?: string, contract: string, keys?: string, user?: string, out?: string, format?: string }} args
+ * @param {{ id?: string, dataId?: string, contract: string, passphrase?: string, user?: string, out?: string, format?: string }} args
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function retrieveAndDecryptAction(args, hre) {
-  const { id, dataId: dataIdArg, contract, keys, user, out, format = "utf8" } = args;
+  const { id, dataId: dataIdArg, contract, passphrase, user, out, format = "utf8" } = args;
 
   if (!contract) throw new Error("Missing required option: --contract");
-  if (!id && !dataIdArg) throw new Error("Provide --id or --dataId");
+  if (!id) throw new Error("Missing required option: --id");
+  if (!passphrase) throw new Error("Missing required option: --passphrase");
 
-  const dataId = dataIdArg ?? computeDataId(id);
-
-  const keysPath = keys ?? defaultKeysPath();
-
-  const keyJson = readKeysFile(keysPath);
-  const privateKeyHex = keyJson.privateKey;
+  const normalizedId = normalizeIdentifier(id);
+  const masterKeyBytes = passphrase ? deriveMasterKeyBytes(passphrase) : null;
+  const keyIdBytes = masterKeyBytes ? deriveKeyIdBytes(masterKeyBytes) : null;
+  const dataId = dataIdArg ?? computeDataIdKeyed(keyIdBytes, normalizedId);
 
   // In Hardhat's in-process network (used by node:test), multiple calls to `network.connect()`
   // may yield isolated connections. Allow tests (and advanced callers) to inject a shared
@@ -55,9 +58,10 @@ export default async function retrieveAndDecryptAction(args, hre) {
 
   const kemCiphertextSize = getKemCiphertextSize("ml-kem-768");
   const parsed = unpackEncryptedPayload(packed, { kemCiphertextSize });
-  const privateKey = importKemPrivateKey(privateKeyHex, "ml-kem-768");
-
-  const recoveredSecret = await privateKey.decryptKey(parsed.kemCiphertext);
+  const kem = new MlKem768();
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
+  const [, privateKey] = await kem.deriveKeyPair(seed);
+  const recoveredSecret = await kem.decap(parsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
   const aad = buildAad(dataId);
 

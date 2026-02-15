@@ -18,16 +18,21 @@ import {
   HKDF_INFO,
   HKDF_SALT,
   buildAad,
-  computeDataId,
+  computeDataIdKeyed,
+  deriveKemSeedBytes,
+  deriveKeyIdBytes,
+  deriveMasterKeyBytes,
+  normalizeIdentifier,
   packEncryptedPayload,
   unpackEncryptedPayload,
 } from "../../src/protocol.js";
-import { PQClean, getKemCiphertextSize } from "../../src/pqclean.js";
+import { getKemCiphertextSize } from "../../src/pqclean.js";
+import { MlKem768 } from "mlkem";
 
-async function encryptForDataId(plaintext, dataId) {
-  const { publicKey, privateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
-  const { key: kemSharedSecret, encryptedKey: kemCiphertext } =
-    await publicKey.generateKey();
+async function encryptForDataId(plaintext, dataId, seed) {
+  const kem = new MlKem768();
+  const [publicKey, privateKey] = await kem.deriveKeyPair(seed);
+  const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
 
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
   const aad = buildAad(dataId);
@@ -39,14 +44,13 @@ async function encryptForDataId(plaintext, dataId) {
   };
 }
 
-async function storeAndFetchEncryptedData({ idString, packedPayload }) {
+async function storeAndFetchEncryptedData({ dataId, packedPayload }) {
   const { viem } = await network.connect();
   const publicClient = await viem.getPublicClient();
   const [walletClient] = await viem.getWalletClients();
   const [account] = await walletClient.getAddresses();
 
   const contract = await viem.deployContract("EncryptedStorage");
-  const dataId = computeDataId(idString);
 
   const txHash = await contract.write.storeEncrypted([dataId, toHex(packedPayload)], {
     account,
@@ -66,19 +70,25 @@ async function storeAndFetchEncryptedData({ idString, packedPayload }) {
 
 test("E2E: encrypt -> storeEncrypted -> getEncrypted -> decrypt yields original plaintext", async () => {
   const idString = "e2e-happy";
-  const dataId = computeDataId(idString);
+  const passphrase = "passphrase-e2e";
+  const normalizedId = normalizeIdentifier(idString);
+  const masterKeyBytes = deriveMasterKeyBytes(passphrase);
+  const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
+  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
 
   const plaintext = crypto.randomBytes(1024);
-  const { privateKey, packed } = await encryptForDataId(plaintext, dataId);
+  const { privateKey, packed } = await encryptForDataId(plaintext, dataId, seed);
 
   const { encryptedDataHex } = await storeAndFetchEncryptedData({
-    idString,
+    dataId,
     packedPayload: packed,
   });
 
   const kemCiphertextSize = getKemCiphertextSize("ml-kem-768");
   const parsed = unpackEncryptedPayload(Buffer.from(hexToBytes(encryptedDataHex)), { kemCiphertextSize });
-  const recoveredSecret = await privateKey.decryptKey(parsed.kemCiphertext);
+  const kem = new MlKem768();
+  const recoveredSecret = await kem.decap(parsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
 
   const aad = buildAad(dataId);
@@ -91,13 +101,18 @@ test("E2E: encrypt -> storeEncrypted -> getEncrypted -> decrypt yields original 
 
 test("E2E negative: tampering with stored ciphertext causes decrypt to fail", async () => {
   const idString = "e2e-negative";
-  const dataId = computeDataId(idString);
+  const passphrase = "passphrase-e2e-neg";
+  const normalizedId = normalizeIdentifier(idString);
+  const masterKeyBytes = deriveMasterKeyBytes(passphrase);
+  const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
+  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
 
   const plaintext = Buffer.from("hello world", "utf8");
-  const { privateKey, packed } = await encryptForDataId(plaintext, dataId);
+  const { privateKey, packed } = await encryptForDataId(plaintext, dataId, seed);
 
   const { encryptedDataHex } = await storeAndFetchEncryptedData({
-    idString,
+    dataId,
     packedPayload: packed,
   });
 
@@ -113,7 +128,8 @@ test("E2E negative: tampering with stored ciphertext causes decrypt to fail", as
 
   const tamperedParsed = unpackEncryptedPayload(tamperedPacked, { kemCiphertextSize });
 
-  const recoveredSecret = await privateKey.decryptKey(tamperedParsed.kemCiphertext);
+  const kem = new MlKem768();
+  const recoveredSecret = await kem.decap(tamperedParsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
   const aad = buildAad(dataId);
 

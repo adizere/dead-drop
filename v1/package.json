@@ -12,6 +12,7 @@
     "viem": "^2.44.4"
   },
   "dependencies": {
+    "mlkem": "^2.5.0",
     "pqclean": "^0.8.1"
   },
   "scripts": {

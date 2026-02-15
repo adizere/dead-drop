@@ -1,19 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-
 import { network } from "hardhat";
 import { toHex } from "viem";
 
 import { aes256GcmEncrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
-import { writeKeysFile } from "../../src/keyfile.js";
-import { buildAad, computeDataId, HKDF_INFO, HKDF_SALT, packEncryptedPayload } from "../../src/protocol.js";
-import { PQClean } from "../../src/pqclean.js";
+import {
+  buildAad,
+  computeDataIdKeyed,
+  deriveKemSeedBytes,
+  deriveKeyIdBytes,
+  deriveMasterKeyBytes,
+  HKDF_INFO,
+  HKDF_SALT,
+  normalizeIdentifier,
+  packEncryptedPayload,
+} from "../../src/protocol.js";
+import { MlKem768 } from "mlkem";
 import retrieveAndDecryptAction from "../../plugins/retrieve-and-decrypt/task-action.js";
-
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
 
 test("retrieve-and-decrypt task returns the original plaintext (happy path)", async () => {
   const connection = await network.connect();
@@ -25,12 +28,18 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
   const contract = await viem.deployContract("EncryptedStorage");
 
   const id = "retrieve-happy";
-  const dataId = computeDataId(id);
+  const passphrase = "passphrase-1";
+  const normalizedId = normalizeIdentifier(id);
+  const masterKeyBytes = deriveMasterKeyBytes(passphrase);
+  const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
+  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
   const plaintext = Buffer.from("hello from retrieve", "utf8");
 
   // Encrypt (same scheme as the encrypt task)
-  const { publicKey, privateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
-  const { key: kemSharedSecret, encryptedKey: kemCiphertext } = await publicKey.generateKey();
+  const kem = new MlKem768();
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
+  const [publicKey, privateKey] = await kem.deriveKeyPair(seed);
+  const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
   const aad = buildAad(dataId);
   const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
@@ -40,21 +49,11 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
   const txHash = await contract.write.storeEncrypted([dataId, toHex(packed)], { account });
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-  // Write keys file expected by retrieve task
-  const keysDir = "keys-test";
-  ensureDir(keysDir);
-  const keysPath = `${keysDir}/${id}.key.json`;
-  writeKeysFile({
-    keysPath,
-    publicKey: toHex(Buffer.from(await publicKey.export())),
-    privateKey: toHex(Buffer.from(await privateKey.export())),
-  });
-
   const decrypted = await retrieveAndDecryptAction(
     {
       contract: contract.address,
       id,
-      keys: keysPath,
+      passphrase,
       user: account,
       format: "utf8",
     },
@@ -74,11 +73,18 @@ test("retrieve-and-decrypt fails with the wrong key (negative)", async () => {
   const contract = await viem.deployContract("EncryptedStorage");
 
   const id = "retrieve-negative";
-  const dataId = computeDataId(id);
+  const passphrase = "passphrase-2";
+  const wrongPassphrase = "passphrase-2-wrong";
+  const normalizedId = normalizeIdentifier(id);
+  const masterKeyBytes = deriveMasterKeyBytes(passphrase);
+  const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
+  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
   const plaintext = Buffer.from("secret", "utf8");
 
-  const { publicKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
-  const { key: kemSharedSecret, encryptedKey: kemCiphertext } = await publicKey.generateKey();
+  const kem = new MlKem768();
+  const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
+  const [publicKey] = await kem.deriveKeyPair(seed);
+  const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
   const aad = buildAad(dataId);
   const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
@@ -88,23 +94,12 @@ test("retrieve-and-decrypt fails with the wrong key (negative)", async () => {
   const txHash = await contract.write.storeEncrypted([dataId, toHex(packed)], { account });
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-  // Write a WRONG keys file (fresh unrelated private key)
-  const { privateKey: wrongPrivateKey } = await PQClean.kem.generateKeyPair("ml-kem-768");
-  const keysDir = "keys-test";
-  ensureDir(keysDir);
-  const keysPath = `${keysDir}/${id}.wrong.key.json`;
-  writeKeysFile({
-    keysPath,
-    publicKey: "0x",
-    privateKey: toHex(Buffer.from(await wrongPrivateKey.export())),
-  });
-
   await assert.rejects(async () => {
     await retrieveAndDecryptAction(
       {
         contract: contract.address,
         id,
-        keys: keysPath,
+        passphrase: wrongPassphrase,
         format: "utf8",
       },
       { network, __sharedConnection: connection },

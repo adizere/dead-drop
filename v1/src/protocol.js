@@ -1,4 +1,5 @@
-import { hexToBytes, keccak256, toBytes } from "viem";
+import crypto from "node:crypto";
+import { hexToBytes } from "viem";
 
 // Protocol constants (must stay consistent across encrypt/store/retrieve/decrypt)
 export const PROTOCOL_VERSION = 1;
@@ -7,18 +8,70 @@ export const ALG_ID_MLKEM768_AES256GCM = 1; // 0x01
 // HKDF domain separation constants
 export const HKDF_SALT = Buffer.from("shared-secret:v0", "utf8");
 export const HKDF_INFO = Buffer.from("ml-kem-768->aes-256-gcm", "utf8");
+export const PBKDF2_SALT = Buffer.from("shared-secret:v1", "utf8");
+export const PBKDF2_ITERS = 600_000;
+export const HKDF_ID_SALT = Buffer.from("shared-secret:v1:hkdf", "utf8");
+
+export function normalizeIdentifier(idString) {
+  if (typeof idString !== "string") throw new Error("Identifier must be a string");
+  const normalized = idString.trim().normalize("NFC");
+  if (!normalized) throw new Error("Identifier cannot be empty");
+  return normalized;
+}
+
+/**
+ * Compute bytes32 dataId from a human-readable string using a keyed HMAC.
+ * @param {Uint8Array|string} keyId - 32-byte secret (hex string or bytes)
+ * @param {string} idString
+ * @returns {`0x${string}`}
+ */
+export function computeDataIdKeyed(keyId, idString) {
+  const normalized = normalizeIdentifier(idString);
+  const keyBytes = typeof keyId === "string" ? hexToBytes(keyId) : keyId;
+  const mac = crypto
+    .createHmac("sha256", Buffer.from(keyBytes))
+    .update(Buffer.from(normalized, "utf8"))
+    .digest();
+  return `0x${mac.subarray(0, 32).toString("hex")}`;
+}
+
+export function deriveMasterKeyBytes(passphrase) {
+  if (typeof passphrase !== "string" || passphrase.length === 0) {
+    throw new Error("Passphrase is required");
+  }
+  const buf = crypto.pbkdf2Sync(passphrase, PBKDF2_SALT, PBKDF2_ITERS, 32, "sha256");
+  return new Uint8Array(buf);
+}
+
+export function hkdfBytes(ikmBytes, infoBytes, length) {
+  const buf = crypto.hkdfSync(
+    "sha256",
+    Buffer.from(ikmBytes),
+    HKDF_ID_SALT,
+    infoBytes,
+    length,
+  );
+  return new Uint8Array(buf);
+}
+
+export function deriveKeyIdBytes(masterKeyBytes) {
+  return hkdfBytes(masterKeyBytes, Buffer.from("id-key", "utf8"), 32);
+}
+
+export function deriveKemSeedBytes(masterKeyBytes, normalizedId) {
+  return hkdfBytes(masterKeyBytes, Buffer.from(`kem:${normalizedId}`, "utf8"), 64);
+}
 
 /**
  * Compute bytes32 dataId from a human-readable string.
  * Identifiers are normalized to avoid accidental mismatches.
  * @param {string} idString
+ * @param {Uint8Array|string} keyId
  * @returns {`0x${string}`}
  */
-export function computeDataId(idString) {
-  if (typeof idString !== "string") throw new Error("Identifier must be a string");
-  const normalized = idString.trim().normalize("NFC");
-  if (!normalized) throw new Error("Identifier cannot be empty");
-  return keccak256(toBytes(normalized));
+export function computeDataId(idString, keyId) {
+  if (!keyId) throw new Error("Missing keyId for keyed dataId");
+  return computeDataIdKeyed(keyId, idString);
 }
 
 /**

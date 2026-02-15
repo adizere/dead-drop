@@ -26,7 +26,7 @@ v1 fixes all of this by storing data in **contract state** (a Solidity mapping).
 | **CLI options** | `--rpcUrl`, `--fromBlock` needed for retrieval | Removed (not needed) |
 | **Crypto** | ML-KEM-768 + AES-256-GCM, HKDF-SHA256 | **Identical** (same protocol, same constants) |
 | **Payload format** | `[version:1][algId:1][kemCt][iv:12][ct][tag:16]` | **Identical** |
-| **Key files** | `keys/<id>.key.json` | `keys/default.key.json` -- single shared keypair reused across secrets |
+| **Key files** | `keys/<id>.key.json` | Not used in browser flow; per-secret keys are derived from passphrase + identifier |
 | **Frontend** | None | Single-file browser UI (`frontend/index.html`) -- encrypt/store and retrieve/decrypt from the browser |
 
 ### Changelog
@@ -47,7 +47,7 @@ v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, 
 ### What it does
 
 - **Encrypt & Store** -- type an identifier + plaintext message, sign a transaction, and store the encrypted blob on-chain.
-- **Retrieve & Decrypt** -- enter an identifier (and optionally a user address), read the blob via a `view` call (no gas), and decrypt locally.
+- **Retrieve & Decrypt** -- enter an identifier, read the blob via a `view` call (no gas), and decrypt locally.
 
 ### Technical details
 
@@ -57,9 +57,35 @@ v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, 
 | **Crypto** | ML-KEM-768 encap/decap via `mlkem`; AES-256-GCM + HKDF-SHA256 via the native Web Crypto API. Same protocol and payload format as the CLI |
 | **Wallet** | MetaMask (EIP-1193 `window.ethereum`); auto-switches to Arc Testnet (chain 5042002) if needed |
 | **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store, `getEncrypted` view call for retrieval |
-| **Key management** | Public/private key hex from `keys/default.key.json` hardcoded as constants at the top of the script |
-| **UI** | Brutalist monospace theme; line-numbered editor for input/output; fully responsive |
-| **Identifier normalization** | `idString.trim().normalize("NFC")` before `keccak256(toBytes(...))`; case-sensitive, empty identifiers rejected |
+| **Key management** | Per-secret ML-KEM keypair derived from passphrase + identifier in the browser (no keys stored on server or chain) |
+| **UI** | Brutalist monospace theme; Access section (passphrase + identifier), Retrieve first, Store second |
+| **Identifier normalization** | `idString.trim().normalize("NFC")` before keyed derivation; case-sensitive, empty identifiers rejected |
+
+### Identifier derivation (keyed, breaking change)
+
+Identifiers are low-entropy, so `dataId` is derived using a keyed HMAC to prevent enumeration:
+
+- `masterKey = PBKDF2(passphrase, "shared-secret:v1", 600k iterations, SHA-256)`
+- `keyId = HKDF(masterKey, info="id-key", len=32)`
+- `dataId = HMAC-SHA256(keyId, normalizedId)` → 32 bytes
+
+This is a **breaking change** from the previous `keccak256(id)` approach. Existing on-chain entries will not be discoverable with the new keyed `dataId`. Deploy a new contract for this version.
+
+### Per-secret keys
+
+For each identifier, the ML-KEM-768 keypair is derived deterministically:
+
+- `seed = HKDF(masterKey, info="kem:<normalizedId>", len=64)`
+- `mlkem.deriveKeyPair(seed)` produces the per-secret keypair
+
+### Gating rules
+
+- **Store** requires passphrase + identifier + wallet (gas paid).
+- **Retrieve** requires passphrase + identifier (wallet connection supplies the user address; no gas).
+
+### Forward secrecy
+
+Forward secrecy is **out of scope**. The priority is deterministic decryption given passphrase + identifier.
 
 ### Identifier requirements
 
@@ -84,26 +110,26 @@ npm test              # run all tests (15 passing)
 
 ```shell
 # Deploys a new contract and stores the encrypted message
-npm run store:encrypt -- --id demo --message "hello" --network arcTestnet
+npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello" --network arcTestnet
 
 # Store into an existing contract
-npm run store:encrypt -- --id demo --message "hello" --contract 0x... --network arcTestnet
+npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello" --contract 0x... --network arcTestnet
 
 # Encrypt a file
-npm run store:encrypt -- --id demo-file --file ./path/to/secret.bin --network arcTestnet
+npm run store:encrypt -- --id demo-file --passphrase "correct horse battery staple" --file ./path/to/secret.bin --network arcTestnet
 ```
 
 ### Retrieve and decrypt
 
 ```shell
 # Print plaintext to stdout
-npm run retrieve:decrypt -- --contract 0x... --id demo --network arcTestnet
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --network arcTestnet
 
 # Output as hex
-npm run retrieve:decrypt -- --contract 0x... --id demo --format hex --network arcTestnet
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --format hex --network arcTestnet
 
 # Write to file
-npm run retrieve:decrypt -- --contract 0x... --id demo --out ./plaintext.bin --network arcTestnet
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --out ./plaintext.bin --network arcTestnet
 ```
 
 Note: Unlike v0, no `--rpcUrl` or `--fromBlock` needed -- retrieval is a direct contract read.

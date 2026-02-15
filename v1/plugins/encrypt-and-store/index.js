@@ -10,9 +10,15 @@ const encryptStoreOptions = (t) =>
   t
     .addOption({
       name: "id",
-      description: "Human-readable identifier (will be hashed to bytes32 dataId)",
+      description: "Human-readable identifier (used with passphrase to derive dataId)",
       type: ArgumentType.STRING,
       defaultValue: "",
+    })
+    .addOption({
+      name: "passphrase",
+      description: "Passphrase used to derive keyed dataId + per-secret keys",
+      type: ArgumentType.STRING_WITHOUT_DEFAULT,
+      defaultValue: undefined,
     })
     .addOption({
       name: "message",
@@ -36,7 +42,7 @@ const encryptStoreOptions = (t) =>
     .addOption({
       name: "keysOut",
       description:
-        "Where to write the ML-KEM keypair JSON (default: keys/default.key.json; reused if it already exists)",
+        "Optional path to write the derived ML-KEM keypair JSON (for debugging only)",
       type: ArgumentType.FILE_WITHOUT_DEFAULT,
       defaultValue: undefined,
     })
