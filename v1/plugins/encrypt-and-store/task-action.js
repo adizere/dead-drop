@@ -87,8 +87,10 @@ export default async function encryptAndStoreAction(args, hre) {
     { version: PROTOCOL_VERSION, algId: ALG_ID_MLKEM768_AES256GCM },
   );
 
-  // Connect and deploy/attach contract
-  const { viem } = await hre.network.connect();
+  // Connect and deploy/attach contract. Default to Arc Testnet when --network is omitted
+  // (Hardhat 3 uses the in-process "default" network when --network is not passed).
+  const networkName = hre.globalOptions?.network ?? "arcTestnet";
+  const { viem } = await hre.network.connect(networkName);
   const [walletClient] = await viem.getWalletClients();
   const [account] = await walletClient.getAddresses();
 

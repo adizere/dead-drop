@@ -30,6 +30,18 @@ export default {
         defaultValue: undefined,
       })
       .addOption({
+        name: "rpcUrl",
+        description: "RPC URL for the chain (no wallet/keystore). Default: Arc Testnet",
+        type: ArgumentType.STRING,
+        defaultValue: "https://rpc.testnet.arc.network",
+      })
+      .addOption({
+        name: "chainId",
+        description: "Chain ID when using --rpc-url (default 5042002 for Arc Testnet)",
+        type: ArgumentType.STRING,
+        defaultValue: "5042002",
+      })
+      .addOption({
         name: "out",
         description: "Write plaintext to file instead of stdout",
         type: ArgumentType.FILE_WITHOUT_DEFAULT,

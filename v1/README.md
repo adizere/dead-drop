@@ -106,42 +106,39 @@ npm install
 npm test              # run all tests
 ```
 
-### Encrypt and store, assuming Arc testnet
+### Encrypt and store
+
+When you omit `--network`, the task connects to **Arc Testnet** (you will be prompted for the keystore password):
 
 ```shell
-# Deploys a new contract and stores the encrypted message
-npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello" --network arcTestnet
+# Deploys a new contract and stores the encrypted message (default: Arc Testnet)
+npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello"
 
 # Store into an existing contract
-npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello" --contract 0x... --network arcTestnet
+npm run store:encrypt -- --id demo --passphrase "correct horse battery staple" --message "hello" --contract 0x...
 
 # Encrypt a file
-npm run store:encrypt -- --id demo-file --passphrase "correct horse battery staple" --file ./path/to/secret.bin --network arcTestnet
+npm run store:encrypt -- --id demo-file --passphrase "correct horse battery staple" --file ./path/to/secret.bin
 ```
+
+Use `--network sepolia` (or another network from `hardhat.config.ts`) to target a different chain.
 
 ### Retrieve and decrypt
 
-```shell
-# Print plaintext to stdout
-npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --network arcTestnet
-
-# Output as hex
-npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --format hex --network arcTestnet
-
-# Write to file
-npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple" --out ./plaintext.bin --network arcTestnet
-```
-
-Note: Unlike v0, no `--rpcUrl` or `--fromBlock` needed -- retrieval is a direct contract read.
-
-### Deploy to a testnet
+Retrieval needs no wallet or gas. The task uses `--rpc-url` (default: Arc Testnet) and does not use Hardhat’s network, so no keystore password is prompted:
 
 ```shell
-# Sepolia
-npx hardhat store:encrypt --network sepolia --id demo --message "hello"
+# Print plaintext to stdout (no --network, no keystore password)
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "correct horse battery staple"
 
-# Arc testnet
-npx hardhat store:encrypt --network arcTestnet --id demo --message "hello"
+# Custom RPC
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "..." --rpc-url https://rpc.testnet.arc.network --chain-id 5042002
+
+# Output as hex or write to file
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "..." --format hex
+npm run retrieve:decrypt -- --contract 0x... --id demo --passphrase "..." --out ./plaintext.bin
 ```
 
-Set the appropriate private key via `npx hardhat keystore set <KEY_NAME>` (see `hardhat.config.ts` for network details).
+### Other networks
+
+For store, the default network is Arc Testnet. To use another chain (e.g. Sepolia), pass `--network sepolia`. Set the private key via `npx hardhat keystore set <KEY_NAME>` (see `hardhat.config.ts` for network details).

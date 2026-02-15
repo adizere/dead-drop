@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-import { hexToBytes } from "viem";
+import { createPublicClient, getContract, hexToBytes, http } from "viem";
 import { MlKem768 } from "mlkem";
 
 import { aes256GcmDecrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
@@ -23,12 +23,22 @@ import { getKemCiphertextSize } from "../../src/pqclean.js";
  *
  * Returns decrypted bytes (Buffer) for programmatic usage.
  * Retrieval uses only dataId (no wallet or user address required).
+ * On HTTP networks we use a public client only, so no keystore/password is needed.
  *
  * @param {{ id?: string, dataId?: string, contract: string, passphrase?: string, out?: string, format?: string }} args
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function retrieveAndDecryptAction(args, hre) {
-  const { id, dataId: dataIdArg, contract, passphrase, out, format = "utf8" } = args;
+  const {
+    id,
+    dataId: dataIdArg,
+    contract,
+    passphrase,
+    out,
+    format = "utf8",
+    rpcUrl,
+    chainId: chainIdArg,
+  } = args;
 
   if (!contract) throw new Error("Missing required option: --contract");
   if (!id) throw new Error("Missing required option: --id");
@@ -39,12 +49,57 @@ export default async function retrieveAndDecryptAction(args, hre) {
   const keyIdBytes = masterKeyBytes ? deriveKeyIdBytes(masterKeyBytes) : null;
   const dataId = dataIdArg ?? computeDataIdKeyed(keyIdBytes, normalizedId);
 
-  // In Hardhat's in-process network (used by node:test), multiple calls to `network.connect()`
-  // may yield isolated connections. Allow tests (and advanced callers) to inject a shared
-  // connection to ensure we query the same chain state.
-  const { viem } = hre.__sharedConnection ?? (await hre.network.connect());
+  let storage;
 
-  const storage = await viem.getContractAt("EncryptedStorage", contract);
+  if (hre.__sharedConnection) {
+    // Tests inject a shared connection to query the same chain state.
+    const { viem } = hre.__sharedConnection;
+    storage = await viem.getContractAt("EncryptedStorage", contract);
+  } else if (rpcUrl) {
+    // Standalone: public client from --rpc-url (and --chain-id). No Hardhat network, no wallet/keystore.
+    const chainId = Number(chainIdArg) || 5042002;
+    const chain = {
+      id: chainId,
+      name: "custom",
+      nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    };
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    });
+    const artifact = await hre.artifacts.readArtifact("EncryptedStorage");
+    storage = getContract({
+      address: contract,
+      abi: artifact.abi,
+      client: publicClient,
+    });
+  } else {
+    const netName = hre.network.name;
+    const netConfig = hre.config.networks?.[netName];
+
+    if (netConfig?.type === "http" && netConfig?.url) {
+      const chain = {
+        id: netConfig.chainId ?? 0,
+        name: netName,
+        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+        rpcUrls: { default: { http: [netConfig.url] } },
+      };
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(netConfig.url),
+      });
+      const artifact = await hre.artifacts.readArtifact("EncryptedStorage");
+      storage = getContract({
+        address: contract,
+        abi: artifact.abi,
+        client: publicClient,
+      });
+    } else {
+      const { viem } = await hre.network.connect();
+      storage = await viem.getContractAt("EncryptedStorage", contract);
+    }
+  }
 
   const { encryptedData } = await getEncryptedData({
     contract: storage,
