@@ -1,4 +1,4 @@
-# Shared secret (encrypted on-chain storage)
+# Dead Drop (encrypted on-chain storage)
 
 **Quick recap** for when you come back to this repo.
 

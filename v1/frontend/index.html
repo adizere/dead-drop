@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shared Secret</title>
+  <title>Dead Drop</title>
   <style>
     /* ═══════════════════════════════════════════════════════════════
        USGC-INSPIRED BRUTALIST THEME
@@ -258,7 +258,7 @@
     <hr>
     <div class="header">
       <div>
-        <h1>Shared Secret</h1>
+        <h1>Dead Drop</h1>
         <div class="subtitle">Post-quantum encrypted on-chain storage &mdash; v1</div>
       </div>
       <div class="product-code">SYS-01</div>
@@ -330,7 +330,7 @@
     <div class="status" id="store-status"></div>
 
     <hr>
-    <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Shared Secret v1</div>
+    <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Dead Drop v1</div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
@@ -803,7 +803,7 @@
       const w = account
         ? account.slice(0, 6) + "\u2026" + account.slice(-4)
         : "not connected";
-      footerEl.textContent = `Wallet: ${w} \u00b7 Arc Testnet \u00b7 Shared Secret v1`;
+      footerEl.textContent = `Wallet: ${w} \u00b7 Arc Testnet \u00b7 Dead Drop v1`;
     }
 
     function setOutput(text) {

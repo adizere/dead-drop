@@ -1,4 +1,4 @@
-# Shared secret v1
+# Dead Drop v1
 
 v1 of the post-quantum encrypted on-chain storage protocol. Same cryptography as v0, but with **contract-storage-based retrieval** instead of event-log scanning.
 

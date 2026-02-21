@@ -32,4 +32,4 @@ Rationale: We want to reuse the same key across many secrets.
 
 ## Added a frontend
 
-In `frontend` there is now a full-fledged web-server able to serve a webpage for using the shared secret application from browser client.
+In `frontend` there is now a full-fledged web-server able to serve a webpage for using the dead drop application from browser client.

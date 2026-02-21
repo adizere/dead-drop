@@ -54,7 +54,7 @@ const encryptStoreOptions = (t) =>
  * Hardhat 3 tasks are registered via plugins (not by calling task() in a random imported file).
  */
 export default {
-  id: "shared-secret:encrypt-and-store",
+  id: "dead-drop:encrypt-and-store",
   tasks: [
     encryptStoreOptions(
       task(TASK_NAME, encryptStoreDescription),

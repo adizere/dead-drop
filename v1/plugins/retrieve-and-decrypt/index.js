@@ -2,7 +2,7 @@ import { task } from "hardhat/config";
 import { ArgumentType } from "hardhat/types/arguments";
 
 export default {
-  id: "shared-secret:retrieve-and-decrypt",
+  id: "dead-drop:retrieve-and-decrypt",
   tasks: [
     task("retrieve-and-decrypt", "Retrieve encrypted payload from contract storage and decrypt it")
       .addOption({
