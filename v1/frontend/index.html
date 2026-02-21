@@ -123,8 +123,9 @@
     }
     label:first-of-type { margin-top: 0; }
 
-    /* Text inputs */
-    input[type="text"] {
+    /* Text and password inputs (same look) */
+    input[type="text"],
+    input[type="password"] {
       width: 100%;
       font-family: inherit;
       font-size: 0.82rem;
@@ -135,8 +136,10 @@
       color: #111;
       outline: none;
     }
-    input[type="text"]:focus { border-color: #111; }
-    input[type="text"]::placeholder { color: #aaa; }
+    input[type="text"]:focus,
+    input[type="password"]:focus { border-color: #111; }
+    input[type="text"]::placeholder,
+    input[type="password"]::placeholder { color: #aaa; }
 
     /* ── Line-numbered editor ── */
     .editor {
@@ -280,7 +283,7 @@
     <div class="input-row">
       <div>
         <label for="passphrase">Passphrase</label>
-        <input type="password" id="passphrase" placeholder="enter passphrase to unlock">
+        <input type="password" id="passphrase" placeholder="enter passphrase to unlock" autocomplete="off">
       </div>
       <div>
         <label for="access-id">Identifier</label>
@@ -359,7 +362,7 @@
       hexToBytes,
     } from "https://esm.sh/viem@2";
 
-    import { MlKem768 } from "https://esm.sh/mlkem@1";
+    import { MlKem768 } from "https://esm.sh/mlkem@2";
 
     // ─── PROTOCOL CONSTANTS (from v1/src/protocol.js) ───────────────
     const PROTOCOL_VERSION    = 1;
