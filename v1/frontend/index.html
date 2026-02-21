@@ -914,6 +914,8 @@
           `Stored (${bytes} bytes). Tx: ${txHash}`,
           "success",
         );
+        setOutput("");
+        setStatus(retrieveStatEl, "");
       } catch (err) {
         setStatus(storeStatusEl, "ERR: " + err.message, "error");
       } finally {
