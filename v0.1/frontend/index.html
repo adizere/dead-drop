@@ -187,7 +187,9 @@
       tab-size: 2;
     }
 
-    .editor textarea { height: calc(0.82rem * 1.5 * 8 + 0.9rem); }
+    .editor:has(textarea) { height: calc(0.82rem * 1.5 * 8 + 0.9rem); }
+    .editor textarea { height: 100%; }
+    .editor:has(.output-text) { max-height: calc(0.82rem * 1.5 * 24 + 0.9rem); }
 
     .editor .output-text {
       min-height: calc(0.82rem * 1.5 * 6 + 0.9rem);
@@ -237,6 +239,14 @@
       margin-top: 0.25rem;
     }
 
+    /* Disclaimer notice */
+    .notice {
+      font-size: 0.72rem;
+      color: #a00;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0;
+    }
+
     /* Two-column row for retrieve inputs */
     .input-row {
       display: flex;
@@ -259,11 +269,14 @@
     <div class="header">
       <div>
         <h1>Dead Drop</h1>
-        <div class="subtitle">Post-quantum encrypted on-chain storage &mdash; v1</div>
+        <div class="subtitle">Post-quantum encrypted on-chain storage</div>
       </div>
-      <div class="product-code">SYS-01</div>
+      <div class="product-code">v0.1</div>
     </div>
     <hr>
+
+    <div class="notice">&#9888; Highly experimental &mdash; for educational purposes only. Not security-audited. Do not use for sensitive data.</div>
+    <hr class="thin">
 
     <!-- Metadata -->
     <div class="meta-block">
@@ -286,8 +299,8 @@
         <input type="password" id="passphrase" placeholder="enter passphrase to unlock" autocomplete="off">
       </div>
       <div>
-        <label for="access-id">Identifier</label>
-        <input type="text" id="access-id" placeholder="e.g. my-note">
+        <label for="access-identifier">Identifier</label>
+        <input type="text" id="access-identifier" placeholder="e.g. my-note">
       </div>
     </div>
 
@@ -319,7 +332,7 @@
       <div class="note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
     </div>
 
-    <label>Message</label>
+    <label>Input</label>
     <div class="editor" id="msg-editor">
       <div class="gutter" id="msg-gutter"></div>
       <textarea id="store-msg" rows="8"
@@ -330,7 +343,7 @@
     <div class="status" id="store-status"></div>
 
     <hr>
-    <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Dead Drop v1</div>
+    <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Dead Drop v0.1</div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
@@ -702,7 +715,7 @@
 
     // Elements
     const passphraseEl   = $("#passphrase");
-    const accessIdEl     = $("#access-id");
+    const identifierEl   = $("#access-identifier");
     const unlockBtnEl    = $("#unlock-btn");
     const passphraseStatEl = $("#passphrase-status");
     const storeMsgEl     = $("#store-msg");
@@ -767,11 +780,11 @@
 
     function syncStoreBtn() {
       storeBtnEl.disabled =
-        !isUnlocked() || !account || !accessIdEl.value.trim() || !storeMsgEl.value.trim();
+        !isUnlocked() || !account || !identifierEl.value.trim() || !storeMsgEl.value.trim();
     }
 
     function syncRetrieveBtn() {
-      const hasId = !!accessIdEl.value.trim();
+      const hasId = !!identifierEl.value.trim();
       retrieveBtnEl.disabled = !isUnlocked() || !hasId;
     }
 
@@ -784,7 +797,7 @@
       syncRetrieveBtn();
     });
 
-    accessIdEl.addEventListener("input", async () => {
+    identifierEl.addEventListener("input", async () => {
       syncStoreBtn();
       syncRetrieveBtn();
       if (isUnlocked()) {
@@ -803,7 +816,7 @@
       const w = account
         ? account.slice(0, 6) + "\u2026" + account.slice(-4)
         : "not connected";
-      footerEl.textContent = `Wallet: ${w} \u00b7 Arc Testnet \u00b7 Dead Drop v1`;
+      footerEl.textContent = `Wallet: ${w} \u00b7 Arc Testnet \u00b7 Dead Drop v0.1`;
     }
 
     function setOutput(text) {
@@ -814,9 +827,9 @@
     }
 
     async function checkExistingData() {
-      if (!isUnlocked() || !accessIdEl.value.trim()) return;
+      if (!isUnlocked() || !identifierEl.value.trim()) return;
       try {
-        const normalizedId = normalizeIdentifier(accessIdEl.value);
+        const normalizedId = normalizeIdentifier(identifierEl.value);
         const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
         const contract = getContract({
           address: CONTRACT_ADDRESS,
@@ -848,7 +861,7 @@
 
     async function unlockWithPassphrase() {
       const passphrase = passphraseEl.value;
-      const identifier = accessIdEl.value;
+      const identifier = identifierEl.value;
       if (!passphrase) throw new Error("Passphrase is required.");
       if (!identifier || !identifier.trim()) throw new Error("Identifier is required.");
       setStatus(passphraseStatEl, "Deriving keys…");
@@ -899,7 +912,7 @@
 
     // ── Store action ────────────────────────────────────────────────
     storeBtnEl.addEventListener("click", async () => {
-      const id  = accessIdEl.value.trim();
+      const id  = identifierEl.value.trim();
       const msg = storeMsgEl.value;
       if (!id || !msg) return;
 
@@ -925,7 +938,7 @@
 
     // ── Retrieve action ─────────────────────────────────────────────
     retrieveBtnEl.addEventListener("click", async () => {
-      const id   = accessIdEl.value.trim();
+      const id   = identifierEl.value.trim();
       if (!id) return;
 
       retrieveBtnEl.disabled = true;

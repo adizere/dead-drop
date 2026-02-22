@@ -1,10 +1,8 @@
-# Dead Drop v1
+# v0.1
 
-v1 of the post-quantum encrypted on-chain storage protocol. Same cryptography as v0, but with **contract-storage-based retrieval** instead of event-log scanning.
+See [REQUIREMENTS.md](../REQUIREMENTS.md) for the full project spec and [v0/README.md](../v0/README.md) for the implementation notes of the older, v0 prototype.
 
-See [REQUIREMENTS.md](../REQUIREMENTS.md) for the full project spec and [v0/README.md](../v0/README.md) for the original implementation notes.
-
-## Motivation (why v1?)
+## Motivation (why v0.1?)
 
 v0 stores encrypted payloads in transaction calldata and retrieves them by scanning `DataStored` event logs. This works but has serious UX problems on real networks:
 

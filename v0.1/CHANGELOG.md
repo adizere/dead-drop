@@ -1,7 +1,11 @@
 # Changelog
 
-Version 1 started off with the design as outlined in the [Readme.md](./README.md) and then
+Version 0.1 started off with the design as outlined in the [Readme.md](./README.md) and then
 accumulated a few revisions, as follows.
+
+## Renamed to Dead Drop
+
+Original name was confusing and inappropriate ("Shared Secret"). Renamed to "Dead Drop" on Feb 21, 2026. Shuffled some top-level documentation files around, and preparing to open-source the repo.
 
 ## Index by dataId only (no user/wallet for retrieval)
 
