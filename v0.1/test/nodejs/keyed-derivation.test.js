@@ -4,32 +4,32 @@ import assert from "node:assert/strict";
 import { MlKem768 } from "mlkem";
 
 import {
-  computeDataIdKeyed,
+  computeSlot,
   deriveKemSeedBytes,
   deriveKeyIdBytes,
   deriveMasterKeyBytes,
   normalizeIdentifier,
 } from "../../src/protocol.js";
 
-test("computeDataIdKeyed is stable across normalization", () => {
+test("computeSlot is stable across normalization", () => {
   const passphrase = "passphrase-keyed";
   const masterKey = deriveMasterKeyBytes(passphrase);
   const keyId = deriveKeyIdBytes(masterKey);
 
   const idA = "  my-note  ";
   const idB = "my-note";
-  const dataIdA = computeDataIdKeyed(keyId, idA);
-  const dataIdB = computeDataIdKeyed(keyId, idB);
+  const slotA = computeSlot(keyId, idA);
+  const slotB = computeSlot(keyId, idB);
 
-  assert.equal(dataIdA, dataIdB);
+  assert.equal(slotA, slotB);
 });
 
-test("computeDataIdKeyed rejects empty identifiers", () => {
+test("computeSlot rejects empty identifiers", () => {
   const passphrase = "passphrase-keyed-empty";
   const masterKey = deriveMasterKeyBytes(passphrase);
   const keyId = deriveKeyIdBytes(masterKey);
 
-  assert.throws(() => computeDataIdKeyed(keyId, "   "));
+  assert.throws(() => computeSlot(keyId, "   "));
 });
 
 test("per-secret ML-KEM keys are deterministic per identifier", async () => {

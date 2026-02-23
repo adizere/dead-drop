@@ -353,7 +353,7 @@
 
     // ─── CONFIGURATION ──────────────────────────────────────────────
     // Fill these in before use.
-    const CONTRACT_ADDRESS  = "0x7506bf34709abcb216670b31ab5a29dbcb18270e";
+    const CONTRACT_ADDRESS  = "0xA459445d807ac26d9b9135C6e2cda272081a0182";
 
     const ARC_RPC      = "https://rpc.testnet.arc.network";
     const ARC_CHAIN_ID = 5042002;
@@ -391,8 +391,8 @@
         type: "function",
         stateMutability: "nonpayable",
         inputs: [
-          { name: "dataId", type: "bytes32" },
-          { name: "encryptedData", type: "bytes" },
+          { name: "slot", type: "bytes32" },
+          { name: "payload", type: "bytes" },
         ],
         outputs: [],
       },
@@ -401,10 +401,10 @@
         type: "function",
         stateMutability: "view",
         inputs: [
-          { name: "dataId", type: "bytes32" },
+          { name: "slot", type: "bytes32" },
         ],
         outputs: [
-          { name: "encryptedData", type: "bytes" },
+          { name: "payload", type: "bytes" },
           { name: "timestamp", type: "uint256" },
         ],
       },
@@ -469,7 +469,7 @@
       return hkdfBytes(masterKeyBytes, new TextEncoder().encode(`kem:${normalizedId}`), 64);
     }
 
-    async function computeDataIdKeyed(normalizedId, keyIdBytes) {
+    async function computeSlot(normalizedId, keyIdBytes) {
       const hmacKey = await crypto.subtle.importKey(
         "raw",
         keyIdBytes,
@@ -483,10 +483,10 @@
       return toHex(mac.slice(0, 32));
     }
 
-    /** AAD = [version, algId] || dataIdBytes */
-    function buildAad(dataId) {
+    /** AAD = [version, algId] || slotBytes */
+    function buildAad(slot) {
       const prefix = new Uint8Array([PROTOCOL_VERSION, ALG_ID]);
-      const idBytes = hexToBytes(dataId);
+      const idBytes = hexToBytes(slot);
       const aad = new Uint8Array(prefix.length + idBytes.length);
       aad.set(prefix, 0);
       aad.set(idBytes, prefix.length);
@@ -629,11 +629,11 @@
       if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
 
       const normalizedId = normalizeIdentifier(identifier);
-      const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
-      const plaintext = new TextEncoder().encode(message);
+      const slot = await computeSlot(normalizedId, keyIdBytes);
+      const messageBytes = new TextEncoder().encode(message);
 
-      if (plaintext.length > 10_240) {
-        throw new Error(`Message too large: ${plaintext.length} bytes (max 10 240).`);
+      if (messageBytes.length > 10_240) {
+        throw new Error(`Message too large: ${messageBytes.length} bytes (max 10 240).`);
       }
 
       // 1. ML-KEM-768 encapsulate
@@ -646,11 +646,11 @@
 
       // 3. Encrypt
       const iv  = crypto.getRandomValues(new Uint8Array(12));
-      const aad = buildAad(dataId);
-      const { ciphertext, tag } = await aesEncrypt(aesKey, plaintext, iv, aad);
+      const aad = buildAad(slot);
+      const { ciphertext, tag } = await aesEncrypt(aesKey, messageBytes, iv, aad);
 
       // 4. Pack
-      const packed = packPayload(kemCt, iv, ciphertext, tag);
+      const payload = packPayload(kemCt, iv, ciphertext, tag);
 
       // 5. Send transaction
       const contract = getContract({
@@ -660,11 +660,11 @@
       });
 
       const txHash = await contract.write.storeEncrypted(
-        [dataId, toHex(packed)],
+        [slot, toHex(payload)],
         { account },
       );
 
-      return { txHash, dataId, bytes: packed.length };
+      return { txHash, bytes: payload.length };
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -674,7 +674,7 @@
       if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
 
       const normalizedId = normalizeIdentifier(identifier);
-      const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
+      const slot = await computeSlot(normalizedId, keyIdBytes);
 
       const contract = getContract({
         address: CONTRACT_ADDRESS,
@@ -682,13 +682,13 @@
         client: publicClient,
       });
 
-      const [encData, timestamp] = await contract.read.getEncrypted([dataId]);
+      const [payload, timestamp] = await contract.read.getEncrypted([slot]);
 
-      if (!encData || encData === "0x") {
+      if (!payload || payload === "0x") {
         throw new Error(`No data found for "${identifier}".`);
       }
 
-      const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(encData));
+      const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(payload));
 
       // 1. ML-KEM-768 decapsulate
       const seed = await deriveKemSeedBytes(masterKeyBytes, normalizedId);
@@ -699,11 +699,11 @@
       const aesKey = await deriveAesKey(sharedSecret, ["decrypt"]);
 
       // 3. Decrypt
-      const aad       = buildAad(dataId);
-      const plaintext = await aesDecrypt(aesKey, iv, ct, tag, aad);
+      const aad          = buildAad(slot);
+      const messageBytes = await aesDecrypt(aesKey, iv, ct, tag, aad);
 
       return {
-        text: new TextDecoder().decode(plaintext),
+        message: new TextDecoder().decode(messageBytes),
         timestamp: Number(timestamp),
       };
     }
@@ -806,7 +806,7 @@
       }
     });
 
-    // ── Status helpers ──────────────────────────────────────────────
+    // ── Status helpers ──────────────────────────────��────────────��──
     function setStatus(el, msg, cls) {
       el.textContent = msg;
       el.className = "status" + (cls ? " " + cls : "");
@@ -830,14 +830,14 @@
       if (!isUnlocked() || !identifierEl.value.trim()) return;
       try {
         const normalizedId = normalizeIdentifier(identifierEl.value);
-        const dataId = await computeDataIdKeyed(normalizedId, keyIdBytes);
+        const slot = await computeSlot(normalizedId, keyIdBytes);
         const contract = getContract({
           address: CONTRACT_ADDRESS,
           abi: ABI,
           client: publicClient,
         });
-        const [encData] = await contract.read.getEncrypted([dataId]);
-        if (encData && encData !== "0x") {
+        const [payload] = await contract.read.getEncrypted([slot]);
+        if (payload && payload !== "0x") {
           setStatus(
             passphraseStatEl,
             "Existing data found. Go to Section 1 (Retrieve).",
@@ -946,8 +946,8 @@
       setOutput("");
 
       try {
-        const { text, timestamp } = await retrieveAndDecrypt(id);
-        setOutput(text);
+        const { message, timestamp } = await retrieveAndDecrypt(id);
+        setOutput(message);
         const when = timestamp
           ? new Date(timestamp * 1000).toISOString()
           : "unknown";

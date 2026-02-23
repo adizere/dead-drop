@@ -3,6 +3,10 @@
 Version 0.1 started off with the design as outlined in the [Readme.md](./README.md) and then
 accumulated a few revisions, as follows.
 
+## Renamed `dataId` → `slot`, `encryptedData` → `payload`
+
+The on-chain storage key was renamed from `dataId` to `slot` throughout: Solidity contract params/events, JS source (`computeDataIdKeyed` → `computeSlot`), CLI, tests, and the browser frontend. The encrypted binary blob was renamed from `encryptedData` / `packed` to `payload` in the same pass. Both names now match the data model: `slot` = where the entry lives in `mapping(bytes32 => Entry)`; `payload` = the binary content stored there. **Breaking:** requires a new contract deployment.
+
 ## Renamed to Dead Drop
 
 Original name was confusing and inappropriate ("Shared Secret"). Renamed to "Dead Drop" on Feb 21, 2026. Shuffled some top-level documentation files around, and preparing to open-source the repo.

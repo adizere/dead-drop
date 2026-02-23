@@ -18,7 +18,7 @@ v1 fixes all of this by storing data in **contract state** (a Solidity mapping).
 | --- | --- | --- |
 | **Contract** | `EncryptedCalldataStorage` -- emit-only, no storage | `EncryptedStorage` -- writes to `mapping(bytes32 => Entry)` |
 | **Store** | `storeEncrypted(dataId, data)` emits event | Same signature, but also writes to storage |
-| **Retrieve** | Scan `DataStored` event logs (`getLogs` / `cast`) | `getEncrypted(dataId)` view function |
+| **Retrieve** | Scan `DataStored` event logs (`getLogs` / `cast`) | `getEncrypted(slot)` view function |
 | **Mutability** | Immutable (each store is a new event) | Mutable (re-storing overwrites the entry) |
 | **`src/events.js`** | 145 lines: `cast` subprocess, hardcoded block ranges, event decoding | **Deleted** -- replaced by `src/storage.js` (~25 lines) |
 | **CLI options** | `--rpcUrl`, `--fromBlock` needed for retrieval | Removed (not needed) |
@@ -34,7 +34,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for history of change to this version.
 ### Files unchanged (copied from v0)
 
 - `src/crypto.js` -- AES-256-GCM + HKDF
-- `src/protocol.js` -- payload pack/unpack, AAD, `computeDataId()`
+- `src/protocol.js` -- payload pack/unpack, AAD, `computeSlot()`
 - `src/keyfile.js` -- key file I/O
 - `src/pqclean.js` -- ML-KEM-768 wrapper
 
@@ -54,20 +54,20 @@ v1 ships a **zero-build-step browser UI** in `frontend/index.html` (~770 lines, 
 | **Dependencies** | No `node_modules` -- ESM imports from `esm.sh` at runtime: [`viem@2`](https://viem.sh) (Ethereum client) and [`mlkem@1`](https://github.com/nickovs/mlkem) (ML-KEM-768) |
 | **Crypto** | ML-KEM-768 encap/decap via `mlkem`; AES-256-GCM + HKDF-SHA256 via the native Web Crypto API. Same protocol and payload format as the CLI |
 | **Wallet** | MetaMask (EIP-1193 `window.ethereum`); auto-switches to Arc Testnet (chain 5042002) if needed |
-| **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store (wallet required), `getEncrypted(dataId)` view call for retrieval (no wallet) |
+| **Contract interaction** | `viem` `getContract` -- `storeEncrypted` write tx for store (wallet required), `getEncrypted(slot)` view call for retrieval (no wallet) |
 | **Key management** | Per-secret ML-KEM keypair derived from passphrase + identifier in the browser (no keys stored on server or chain) |
 | **UI** | Brutalist monospace theme; Access section (passphrase + identifier), Retrieve first, Store second |
 | **Identifier normalization** | `idString.trim().normalize("NFC")` before keyed derivation; case-sensitive, empty identifiers rejected |
 
-### Identifier derivation (keyed, breaking change)
+### Slot derivation (keyed, breaking change)
 
-Identifiers are low-entropy, so `dataId` is derived using a keyed HMAC to prevent enumeration:
+Identifiers are low-entropy, so the storage `slot` is derived using a keyed HMAC to prevent enumeration:
 
 - `masterKey = PBKDF2(passphrase, "shared-secret:v1", 600k iterations, SHA-256)`
 - `keyId = HKDF(masterKey, info="id-key", len=32)`
-- `dataId = HMAC-SHA256(keyId, normalizedId)` → 32 bytes
+- `slot = HMAC-SHA256(keyId, normalizedId)` → 32 bytes
 
-This is a **breaking change** from the previous `keccak256(id)` approach. Existing on-chain entries will not be discoverable with the new keyed `dataId`. Deploy a new contract for this version.
+This is a **breaking change** from the previous `keccak256(id)` approach. Existing on-chain entries will not be discoverable with the new keyed `slot`. Deploy a new contract for this version.
 
 ### Per-secret keys
 
@@ -93,7 +93,7 @@ Identifiers are normalized before hashing to avoid accidental mismatches:
 - Unicode is normalized to NFC (canonical form).
 - Case-sensitive: `"MyNote"` ≠ `"mynote"`.
 
-Note: This normalization changes the computed `dataId`. If you stored data in earlier versions using non-normalized identifiers, you must use the same normalized form to retrieve it.
+Note: This normalization changes the computed `slot`. If you stored data in earlier versions using non-normalized identifiers, you must use the same normalized form to retrieve it.
 
 ## Quick start
 

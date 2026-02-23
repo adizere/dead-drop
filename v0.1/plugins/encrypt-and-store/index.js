@@ -10,13 +10,13 @@ const encryptStoreOptions = (t) =>
   t
     .addOption({
       name: "id",
-      description: "Human-readable identifier (used with passphrase to derive dataId)",
+      description: "Human-readable identifier (used with passphrase to derive the storage slot)",
       type: ArgumentType.STRING,
       defaultValue: "",
     })
     .addOption({
       name: "passphrase",
-      description: "Passphrase used to derive keyed dataId + per-secret keys",
+      description: "Passphrase used to derive the storage slot + per-secret keys",
       type: ArgumentType.STRING_WITHOUT_DEFAULT,
       defaultValue: undefined,
     })

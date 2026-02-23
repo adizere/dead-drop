@@ -21,7 +21,7 @@ export function defaultKeysPath(cwd = process.cwd()) {
 /**
  * Read and validate a keys JSON file.
  * @param {string} keysPath
- * @returns {{ version?: number, algorithm?: string, dataId?: string, publicKey?: string, privateKey: string }}
+ * @returns {{ version?: number, algorithm?: string, publicKey?: string, privateKey: string }}
  */
 export function readKeysFile(keysPath) {
   const keyJson = JSON.parse(fs.readFileSync(keysPath, "utf8"));

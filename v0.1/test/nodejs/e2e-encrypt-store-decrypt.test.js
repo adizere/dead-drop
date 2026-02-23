@@ -18,7 +18,7 @@ import {
   HKDF_INFO,
   HKDF_SALT,
   buildAad,
-  computeDataIdKeyed,
+  computeSlot,
   deriveKemSeedBytes,
   deriveKeyIdBytes,
   deriveMasterKeyBytes,
@@ -29,22 +29,22 @@ import {
 import { getKemCiphertextSize } from "../../src/pqclean.js";
 import { MlKem768 } from "mlkem";
 
-async function encryptForDataId(plaintext, dataId, seed) {
+async function encryptForSlot(messageBytes, slot, seed) {
   const kem = new MlKem768();
   const [publicKey, privateKey] = await kem.deriveKeyPair(seed);
   const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
 
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
-  const aad = buildAad(dataId);
-  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
+  const aad = buildAad(slot);
+  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, messageBytes, { aad });
 
   return {
     privateKey,
-    packed: packEncryptedPayload({ kemCiphertext, iv, ciphertext, tag }),
+    payload: packEncryptedPayload({ kemCiphertext, iv, ciphertext, tag }),
   };
 }
 
-async function storeAndFetchEncryptedData({ dataId, packedPayload }) {
+async function storeAndFetchEncryptedData({ slot, payload }) {
   const { viem } = await network.connect();
   const publicClient = await viem.getPublicClient();
   const [walletClient] = await viem.getWalletClients();
@@ -52,19 +52,19 @@ async function storeAndFetchEncryptedData({ dataId, packedPayload }) {
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const txHash = await contract.write.storeEncrypted([dataId, toHex(packedPayload)], {
+  const txHash = await contract.write.storeEncrypted([slot, toHex(payload)], {
     account,
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   void receipt;
 
   // v1: retrieve via view function instead of event logs
-  const { encryptedData } = await getEncryptedData({
+  const { payload: payloadHex } = await getEncryptedData({
     contract,
-    dataId,
+    slot,
   });
 
-  return { contractAddress: contract.address, dataId, encryptedDataHex: encryptedData };
+  return { contractAddress: contract.address, slot, payloadHex };
 }
 
 test("E2E: encrypt -> storeEncrypted -> getEncrypted -> decrypt yields original plaintext", async () => {
@@ -73,29 +73,29 @@ test("E2E: encrypt -> storeEncrypted -> getEncrypted -> decrypt yields original 
   const normalizedId = normalizeIdentifier(idString);
   const masterKeyBytes = deriveMasterKeyBytes(passphrase);
   const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
-  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+  const slot = computeSlot(keyIdBytes, normalizedId);
   const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
 
-  const plaintext = crypto.randomBytes(1024);
-  const { privateKey, packed } = await encryptForDataId(plaintext, dataId, seed);
+  const messageBytes = crypto.randomBytes(1024);
+  const { privateKey, payload } = await encryptForSlot(messageBytes, slot, seed);
 
-  const { encryptedDataHex } = await storeAndFetchEncryptedData({
-    dataId,
-    packedPayload: packed,
+  const { payloadHex } = await storeAndFetchEncryptedData({
+    slot,
+    payload,
   });
 
   const kemCiphertextSize = getKemCiphertextSize("ml-kem-768");
-  const parsed = unpackEncryptedPayload(Buffer.from(hexToBytes(encryptedDataHex)), { kemCiphertextSize });
+  const parsed = unpackEncryptedPayload(Buffer.from(hexToBytes(payloadHex)), { kemCiphertextSize });
   const kem = new MlKem768();
   const recoveredSecret = await kem.decap(parsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
 
-  const aad = buildAad(dataId);
+  const aad = buildAad(slot);
   const decrypted = aes256GcmDecrypt(aesKey, parsed.iv, parsed.ciphertext, parsed.tag, {
     aad,
   });
 
-  assert.deepEqual(decrypted, plaintext);
+  assert.deepEqual(decrypted, messageBytes);
 });
 
 test("E2E negative: tampering with stored ciphertext causes decrypt to fail", async () => {
@@ -104,33 +104,33 @@ test("E2E negative: tampering with stored ciphertext causes decrypt to fail", as
   const normalizedId = normalizeIdentifier(idString);
   const masterKeyBytes = deriveMasterKeyBytes(passphrase);
   const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
-  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+  const slot = computeSlot(keyIdBytes, normalizedId);
   const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
 
-  const plaintext = Buffer.from("hello world", "utf8");
-  const { privateKey, packed } = await encryptForDataId(plaintext, dataId, seed);
+  const messageBytes = Buffer.from("hello world", "utf8");
+  const { privateKey, payload } = await encryptForSlot(messageBytes, slot, seed);
 
-  const { encryptedDataHex } = await storeAndFetchEncryptedData({
-    dataId,
-    packedPayload: packed,
+  const { payloadHex } = await storeAndFetchEncryptedData({
+    slot,
+    payload,
   });
 
-  const storedPacked = Buffer.from(hexToBytes(encryptedDataHex));
+  const storedBytes = Buffer.from(hexToBytes(payloadHex));
   const kemCiphertextSize = getKemCiphertextSize("ml-kem-768");
-  const parsed = unpackEncryptedPayload(storedPacked, { kemCiphertextSize });
+  const parsed = unpackEncryptedPayload(storedBytes, { kemCiphertextSize });
 
   // Tamper a byte in the AES ciphertext portion.
   assert.ok(parsed.ciphertext.length > 0, "ciphertext should be non-empty");
-  const tamperedPacked = Buffer.from(storedPacked);
+  const tamperedBytes = Buffer.from(storedBytes);
   const ciphertextOffset = 2 + kemCiphertextSize + 12; // header + kemCiphertext + iv
-  tamperedPacked[ciphertextOffset] ^= 0xff;
+  tamperedBytes[ciphertextOffset] ^= 0xff;
 
-  const tamperedParsed = unpackEncryptedPayload(tamperedPacked, { kemCiphertextSize });
+  const tamperedParsed = unpackEncryptedPayload(tamperedBytes, { kemCiphertextSize });
 
   const kem = new MlKem768();
   const recoveredSecret = await kem.decap(tamperedParsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
-  const aad = buildAad(dataId);
+  const aad = buildAad(slot);
 
   assert.throws(() => {
     aes256GcmDecrypt(aesKey, tamperedParsed.iv, tamperedParsed.ciphertext, tamperedParsed.tag, {

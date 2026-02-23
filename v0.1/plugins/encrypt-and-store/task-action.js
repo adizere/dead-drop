@@ -11,7 +11,7 @@ import {
   HKDF_SALT,
   PROTOCOL_VERSION,
   buildAad,
-  computeDataIdKeyed,
+  computeSlot,
   deriveKemSeedBytes,
   deriveKeyIdBytes,
   deriveMasterKeyBytes,
@@ -47,11 +47,11 @@ export default async function encryptAndStoreAction(args, hre) {
     throw new Error("Provide exactly one plaintext input: --message or --file (not both)");
   }
 
-  const plaintext = readPlaintext({ message, file });
+  const messageBytes = readPlaintext({ message, file });
 
   // MVP limit in requirements: ~10KB plaintext.
-  if (plaintext.length > 10_240) {
-    throw new Error(`Plaintext too large: ${plaintext.length} bytes (max 10240 bytes)`);
+  if (messageBytes.length > 10_240) {
+    throw new Error(`Plaintext too large: ${messageBytes.length} bytes (max 10240 bytes)`);
   }
 
   if (!passphrase) throw new Error("Missing required option: --passphrase");
@@ -59,7 +59,7 @@ export default async function encryptAndStoreAction(args, hre) {
   const normalizedId = normalizeIdentifier(id);
   const masterKeyBytes = deriveMasterKeyBytes(passphrase);
   const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
-  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
+  const slot = computeSlot(keyIdBytes, normalizedId);
 
   const kem = new MlKem768();
   const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
@@ -75,14 +75,14 @@ export default async function encryptAndStoreAction(args, hre) {
   });
 
   // Bind context to the AES-GCM tag.
-  const aad = buildAad(dataId, {
+  const aad = buildAad(slot, {
     version: PROTOCOL_VERSION,
     algId: ALG_ID_MLKEM768_AES256GCM,
   });
 
-  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
+  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, messageBytes, { aad });
 
-  const packed = packEncryptedPayload(
+  const payload = packEncryptedPayload(
     { kemCiphertext, iv, ciphertext, tag },
     { version: PROTOCOL_VERSION, algId: ALG_ID_MLKEM768_AES256GCM },
   );
@@ -98,8 +98,8 @@ export default async function encryptAndStoreAction(args, hre) {
     ? await viem.getContractAt("EncryptedStorage", contract)
     : await viem.deployContract("EncryptedStorage");
 
-  const payloadHex = toHex(packed);
-  const txHash = await storage.write.storeEncrypted([dataId, payloadHex], { account });
+  const payloadHex = toHex(payload);
+  const txHash = await storage.write.storeEncrypted([slot, payloadHex], { account });
 
   let keysPath = null;
   if (keysOut) {
@@ -114,8 +114,8 @@ export default async function encryptAndStoreAction(args, hre) {
 
   console.log("Stored encrypted payload:");
   console.log(`- contract: ${storage.address}`);
-  console.log(`- dataId:   ${dataId}`);
-  console.log(`- bytes:    ${packed.length}`);
+  console.log(`- slot:     ${slot}`);
+  console.log(`- bytes:    ${payload.length}`);
   console.log(`- txHash:   ${txHash}`);
   if (keysPath) console.log(`- keys:     ${keysPath}`);
 }

@@ -12,10 +12,10 @@ test("EncryptedStorage stores and retrieves data via getEncrypted()", async () =
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("my-secret-id"));
-  const encryptedData = toHex(new Uint8Array([1, 2, 3, 4])); // opaque bytes payload
+  const slot = keccak256(toBytes("my-secret-id"));
+  const payload = toHex(new Uint8Array([1, 2, 3, 4])); // opaque bytes payload
 
-  const txHash = await contract.write.storeEncrypted([dataId, encryptedData], {
+  const txHash = await contract.write.storeEncrypted([slot, payload], {
     account,
   });
 
@@ -24,9 +24,9 @@ test("EncryptedStorage stores and retrieves data via getEncrypted()", async () =
   void receipt;
 
   // Retrieve via view function (the core v1 improvement)
-  const [storedData, timestamp] = await contract.read.getEncrypted([dataId]);
+  const [storedData, timestamp] = await contract.read.getEncrypted([slot]);
 
-  assert.equal(storedData, encryptedData);
+  assert.equal(storedData, payload);
   assert.ok(typeof timestamp === "bigint");
   assert.ok(timestamp > 0n);
 });
@@ -40,10 +40,10 @@ test("EncryptedStorage emits DataStored event on store", async () => {
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("event-test"));
-  const encryptedData = toHex(new Uint8Array([10, 20, 30]));
+  const slot = keccak256(toBytes("event-test"));
+  const payload = toHex(new Uint8Array([10, 20, 30]));
 
-  const txHash = await contract.write.storeEncrypted([dataId, encryptedData], {
+  const txHash = await contract.write.storeEncrypted([slot, payload], {
     account,
   });
 
@@ -51,21 +51,21 @@ test("EncryptedStorage emits DataStored event on store", async () => {
 
   const { parseAbiItem } = await import("viem");
   const event = parseAbiItem(
-    "event DataStored(address indexed user, bytes32 indexed dataId, bytes encryptedData, uint256 timestamp)",
+    "event DataStored(address indexed user, bytes32 indexed slot, bytes payload, uint256 timestamp)",
   );
 
   const logs = await publicClient.getLogs({
     address: contract.address,
     event,
-    args: { user: account, dataId },
+    args: { user: account, slot },
     fromBlock: receipt.blockNumber,
     toBlock: receipt.blockNumber,
   });
 
   assert.equal(logs.length, 1);
   assert.equal(logs[0].args.user.toLowerCase(), account.toLowerCase());
-  assert.equal(logs[0].args.dataId, dataId);
-  assert.equal(logs[0].args.encryptedData, encryptedData);
+  assert.equal(logs[0].args.slot, slot);
+  assert.equal(logs[0].args.payload, payload);
 });
 
 test("EncryptedStorage accepts an encrypted payload sized for ~10KB plaintext secrets", async () => {
@@ -76,7 +76,7 @@ test("EncryptedStorage accepts an encrypted payload sized for ~10KB plaintext se
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("payload-10kb-secret"));
+  const slot = keccak256(toBytes("payload-10kb-secret"));
 
   // Budget for a self-contained hybrid payload:
   // - ML-KEM-768 ciphertext: ~1088 bytes
@@ -85,14 +85,14 @@ test("EncryptedStorage accepts an encrypted payload sized for ~10KB plaintext se
   //
   // Target: ~10KB (10240 bytes) plaintext => payload ~1088 + 28 + 10240 = 11356 bytes.
   const payloadBytes = 1088 + 28 + 10_240;
-  const encryptedPayload = toHex(new Uint8Array(payloadBytes));
+  const payload = toHex(new Uint8Array(payloadBytes));
 
-  await contract.write.storeEncrypted([dataId, encryptedPayload], {
+  await contract.write.storeEncrypted([slot, payload], {
     account,
   });
 
   // Retrieve via view function
-  const [storedData] = await contract.read.getEncrypted([dataId]);
+  const [storedData] = await contract.read.getEncrypted([slot]);
 
   // Hex string length = 2 ("0x") + payloadBytes*2
   assert.equal(storedData.length, 2 + payloadBytes * 2);
@@ -109,21 +109,21 @@ test("EncryptedStorage rejects payloads larger than MAX_ENCRYPTED_DATA_BYTES", a
   const max = await contract.read.MAX_ENCRYPTED_DATA_BYTES();
   const oversizedBytes = Number(max) + 1;
 
-  const dataId = keccak256(toBytes("payload-too-large"));
+  const slot = keccak256(toBytes("payload-too-large"));
   const oversizedPayload = toHex(new Uint8Array(oversizedBytes));
 
   await assert.rejects(
     async () => {
-      await contract.write.storeEncrypted([dataId, oversizedPayload], { account });
+      await contract.write.storeEncrypted([slot, oversizedPayload], { account });
     },
     (err) => {
-      assert.match(String(err), /encryptedData too large/i);
+      assert.match(String(err), /payload too large/i);
       return true;
     },
   );
 });
 
-test("EncryptedStorage overwrites previous entry for the same dataId", async () => {
+test("EncryptedStorage overwrites previous entry for the same slot", async () => {
   const { viem } = await network.connect();
 
   const [walletClient] = await viem.getWalletClients();
@@ -131,18 +131,18 @@ test("EncryptedStorage overwrites previous entry for the same dataId", async () 
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("overwrite-test"));
+  const slot = keccak256(toBytes("overwrite-test"));
   const data1 = toHex(new Uint8Array([1, 2, 3]));
   const data2 = toHex(new Uint8Array([4, 5, 6, 7]));
 
-  await contract.write.storeEncrypted([dataId, data1], { account });
+  await contract.write.storeEncrypted([slot, data1], { account });
 
-  const [stored1] = await contract.read.getEncrypted([dataId]);
+  const [stored1] = await contract.read.getEncrypted([slot]);
   assert.equal(stored1, data1);
 
-  await contract.write.storeEncrypted([dataId, data2], { account });
+  await contract.write.storeEncrypted([slot, data2], { account });
 
-  const [stored2] = await contract.read.getEncrypted([dataId]);
+  const [stored2] = await contract.read.getEncrypted([slot]);
   assert.equal(stored2, data2);
 });
 
@@ -154,15 +154,15 @@ test("EncryptedStorage returns empty bytes for non-existent entries", async () =
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("does-not-exist"));
+  const slot = keccak256(toBytes("does-not-exist"));
 
-  const [storedData, timestamp] = await contract.read.getEncrypted([dataId]);
+  const [storedData, timestamp] = await contract.read.getEncrypted([slot]);
 
   assert.equal(storedData, "0x");
   assert.equal(timestamp, 0n);
 });
 
-test("EncryptedStorage: same dataId from different accounts yields single entry (second overwrites)", async () => {
+test("EncryptedStorage: same slot from different accounts yields single entry (second overwrites)", async () => {
   const { viem } = await network.connect();
 
   const [walletClient] = await viem.getWalletClients();
@@ -172,15 +172,15 @@ test("EncryptedStorage: same dataId from different accounts yields single entry 
 
   const contract = await viem.deployContract("EncryptedStorage");
 
-  const dataId = keccak256(toBytes("shared-dataId"));
+  const slot = keccak256(toBytes("shared-slot"));
   const data1 = toHex(new Uint8Array([1, 1, 1]));
   const data2 = toHex(new Uint8Array([2, 2, 2]));
 
-  await contract.write.storeEncrypted([dataId, data1], { account: account0 });
-  const [afterFirst] = await contract.read.getEncrypted([dataId]);
+  await contract.write.storeEncrypted([slot, data1], { account: account0 });
+  const [afterFirst] = await contract.read.getEncrypted([slot]);
   assert.equal(afterFirst, data1);
 
-  await contract.write.storeEncrypted([dataId, data2], { account: account1 });
-  const [afterSecond] = await contract.read.getEncrypted([dataId]);
+  await contract.write.storeEncrypted([slot, data2], { account: account1 });
+  const [afterSecond] = await contract.read.getEncrypted([slot]);
   assert.equal(afterSecond, data2);
 });

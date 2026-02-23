@@ -1,6 +1,5 @@
 # Backlog of ideas
 
-- Rename the parameter `dataId` in the contract to `keyedDataId`
 - Add a constraint that `keyedDataId` must be exactly 32 bytes
 - There should be no overlap bt top-level readme and v1/readme
 - The `message` should actually be `input` throughout

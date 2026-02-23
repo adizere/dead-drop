@@ -13,19 +13,19 @@ export default {
       })
       .addOption({
         name: "id",
-        description: "Identifier string used with passphrase to derive dataId",
+        description: "Identifier string used with passphrase to derive the storage slot",
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })
       .addOption({
         name: "passphrase",
-        description: "Passphrase used to derive keyed dataId + per-secret keys",
+        description: "Passphrase used to derive the storage slot + per-secret keys",
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })
       .addOption({
-        name: "dataId",
-        description: "Override derived bytes32 dataId (0x...)",
+        name: "slot",
+        description: "Override derived bytes32 slot (0x...)",
         type: ArgumentType.STRING_WITHOUT_DEFAULT,
         defaultValue: undefined,
       })

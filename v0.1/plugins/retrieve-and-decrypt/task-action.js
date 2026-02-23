@@ -9,7 +9,7 @@ import {
   HKDF_INFO,
   HKDF_SALT,
   buildAad,
-  computeDataIdKeyed,
+  computeSlot,
   deriveKemSeedBytes,
   deriveKeyIdBytes,
   deriveMasterKeyBytes,
@@ -22,16 +22,16 @@ import { getKemCiphertextSize } from "../../src/pqclean.js";
  * Hardhat task action: retrieve and decrypt.
  *
  * Returns decrypted bytes (Buffer) for programmatic usage.
- * Retrieval uses only dataId (no wallet or user address required).
+ * Retrieval uses only the slot (no wallet or user address required).
  * On HTTP networks we use a public client only, so no keystore/password is needed.
  *
- * @param {{ id?: string, dataId?: string, contract: string, passphrase?: string, out?: string, format?: string }} args
+ * @param {{ id?: string, slot?: string, contract: string, passphrase?: string, out?: string, format?: string }} args
  * @param {import("hardhat/types").HardhatRuntimeEnvironment} hre
  */
 export default async function retrieveAndDecryptAction(args, hre) {
   const {
     id,
-    dataId: dataIdArg,
+    slot: slotArg,
     contract,
     passphrase,
     out,
@@ -47,7 +47,7 @@ export default async function retrieveAndDecryptAction(args, hre) {
   const normalizedId = normalizeIdentifier(id);
   const masterKeyBytes = passphrase ? deriveMasterKeyBytes(passphrase) : null;
   const keyIdBytes = masterKeyBytes ? deriveKeyIdBytes(masterKeyBytes) : null;
-  const dataId = dataIdArg ?? computeDataIdKeyed(keyIdBytes, normalizedId);
+  const slot = slotArg ?? computeSlot(keyIdBytes, normalizedId);
 
   let storage;
 
@@ -101,34 +101,34 @@ export default async function retrieveAndDecryptAction(args, hre) {
     }
   }
 
-  const { encryptedData } = await getEncryptedData({
+  const { payload } = await getEncryptedData({
     contract: storage,
-    dataId,
+    slot,
   });
 
-  const packed = Buffer.from(hexToBytes(encryptedData));
+  const payloadBytes = Buffer.from(hexToBytes(payload));
 
   const kemCiphertextSize = getKemCiphertextSize("ml-kem-768");
-  const parsed = unpackEncryptedPayload(packed, { kemCiphertextSize });
+  const parsed = unpackEncryptedPayload(payloadBytes, { kemCiphertextSize });
   const kem = new MlKem768();
   const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
   const [, privateKey] = await kem.deriveKeyPair(seed);
   const recoveredSecret = await kem.decap(parsed.kemCiphertext, privateKey);
   const aesKey = deriveAes256KeyFromKemSecret(recoveredSecret, { salt: HKDF_SALT, info: HKDF_INFO });
-  const aad = buildAad(dataId);
+  const aad = buildAad(slot);
 
-  const plaintext = aes256GcmDecrypt(aesKey, parsed.iv, parsed.ciphertext, parsed.tag, { aad });
+  const messageBytes = aes256GcmDecrypt(aesKey, parsed.iv, parsed.ciphertext, parsed.tag, { aad });
 
   if (out) {
-    fs.writeFileSync(out, plaintext);
+    fs.writeFileSync(out, messageBytes);
     console.log(`Wrote plaintext to: ${out}`);
   } else if (format === "hex") {
-    console.log(plaintext.toString("hex"));
+    console.log(messageBytes.toString("hex"));
   } else if (format === "utf8") {
-    console.log(plaintext.toString("utf8"));
+    console.log(messageBytes.toString("utf8"));
   } else {
     throw new Error(`Unsupported --format: ${format} (use utf8|hex or --out)`);
   }
 
-  return plaintext;
+  return messageBytes;
 }

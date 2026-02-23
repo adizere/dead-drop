@@ -6,7 +6,7 @@ import { toHex } from "viem";
 import { aes256GcmEncrypt, deriveAes256KeyFromKemSecret } from "../../src/crypto.js";
 import {
   buildAad,
-  computeDataIdKeyed,
+  computeSlot,
   deriveKemSeedBytes,
   deriveKeyIdBytes,
   deriveMasterKeyBytes,
@@ -32,8 +32,8 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
   const normalizedId = normalizeIdentifier(id);
   const masterKeyBytes = deriveMasterKeyBytes(passphrase);
   const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
-  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
-  const plaintext = Buffer.from("hello from retrieve", "utf8");
+  const slot = computeSlot(keyIdBytes, normalizedId);
+  const messageBytes = Buffer.from("hello from retrieve", "utf8");
 
   // Encrypt (same scheme as the encrypt task)
   const kem = new MlKem768();
@@ -41,12 +41,12 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
   const [publicKey, privateKey] = await kem.deriveKeyPair(seed);
   const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
-  const aad = buildAad(dataId);
-  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
+  const aad = buildAad(slot);
+  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, messageBytes, { aad });
 
   const packed = packEncryptedPayload({ kemCiphertext, iv, ciphertext, tag });
 
-  const txHash = await contract.write.storeEncrypted([dataId, toHex(packed)], { account });
+  const txHash = await contract.write.storeEncrypted([slot, toHex(packed)], { account });
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
   const decrypted = await retrieveAndDecryptAction(
@@ -59,7 +59,7 @@ test("retrieve-and-decrypt task returns the original plaintext (happy path)", as
     { network, __sharedConnection: connection },
   );
 
-  assert.deepEqual(decrypted, plaintext);
+  assert.deepEqual(decrypted, messageBytes);
 });
 
 test("retrieve-and-decrypt fails with the wrong key (negative)", async () => {
@@ -77,20 +77,20 @@ test("retrieve-and-decrypt fails with the wrong key (negative)", async () => {
   const normalizedId = normalizeIdentifier(id);
   const masterKeyBytes = deriveMasterKeyBytes(passphrase);
   const keyIdBytes = deriveKeyIdBytes(masterKeyBytes);
-  const dataId = computeDataIdKeyed(keyIdBytes, normalizedId);
-  const plaintext = Buffer.from("secret", "utf8");
+  const slot = computeSlot(keyIdBytes, normalizedId);
+  const messageBytes = Buffer.from("secret", "utf8");
 
   const kem = new MlKem768();
   const seed = deriveKemSeedBytes(masterKeyBytes, normalizedId);
   const [publicKey] = await kem.deriveKeyPair(seed);
   const [kemCiphertext, kemSharedSecret] = await kem.encap(publicKey);
   const aesKey = deriveAes256KeyFromKemSecret(kemSharedSecret, { salt: HKDF_SALT, info: HKDF_INFO });
-  const aad = buildAad(dataId);
-  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, plaintext, { aad });
+  const aad = buildAad(slot);
+  const { iv, ciphertext, tag } = aes256GcmEncrypt(aesKey, messageBytes, { aad });
 
   const packed = packEncryptedPayload({ kemCiphertext, iv, ciphertext, tag });
 
-  const txHash = await contract.write.storeEncrypted([dataId, toHex(packed)], { account });
+  const txHash = await contract.write.storeEncrypted([slot, toHex(packed)], { account });
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
   await assert.rejects(async () => {

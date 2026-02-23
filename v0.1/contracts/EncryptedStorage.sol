@@ -9,7 +9,7 @@ pragma solidity ^0.8.24;
  * - encrypted payload is written to a mapping (contract storage)
  * - retrieval is a simple view function call (no event log scanning)
  * - events are still emitted for indexing / history
- * - data is mutable: storing again for the same dataId overwrites the previous entry
+ * - data is mutable: storing again for the same slot overwrites the previous entry
  */
 contract EncryptedStorage {
     /// @notice Soft cap for the encrypted payload size (bytes) to prevent accidental huge writes.
@@ -19,62 +19,62 @@ contract EncryptedStorage {
 
     /**
      * @notice A stored encrypted entry.
-     * @param encryptedData Opaque encrypted payload bytes
+     * @param payload Opaque encrypted payload bytes
      * @param timestamp Block timestamp when the data was stored
      */
     struct Entry {
-        bytes encryptedData;
+        bytes payload;
         uint256 timestamp;
     }
 
-    /// @dev dataId => Entry (keyed solely by keyed data identifier)
+    /// @dev slot => Entry (keyed solely by derived slot)
     mapping(bytes32 => Entry) private entries;
 
     /**
      * @notice Event emitted when encrypted data is stored (for indexing / history).
      * @param user The address that stored the encrypted payload
-     * @param dataId Client-chosen identifier (hashed string per requirements)
-     * @param encryptedData Opaque encrypted payload bytes
+     * @param slot Derived storage slot (keyed HMAC of passphrase + identifier)
+     * @param payload Opaque encrypted payload bytes
      * @param timestamp Block timestamp when the data was stored
      */
     event DataStored(
         address indexed user,
-        bytes32 indexed dataId,
-        bytes encryptedData,
+        bytes32 indexed slot,
+        bytes payload,
         uint256 timestamp
     );
 
     /**
      * @notice Store an encrypted payload in contract storage.
-     * @param dataId Client-chosen identifier (recommended: keccak256 of user string)
-     * @param encryptedData Opaque encrypted payload bytes
+     * @param slot Derived storage slot (bytes32 keyed HMAC of passphrase + identifier)
+     * @param payload Opaque encrypted payload bytes
      *
-     * Calling again with the same dataId overwrites the previous entry.
+     * Calling again with the same slot overwrites the previous entry.
      */
-    function storeEncrypted(bytes32 dataId, bytes calldata encryptedData) external {
-        require(dataId != bytes32(0), "dataId cannot be zero");
-        require(encryptedData.length != 0, "encryptedData cannot be empty");
-        require(encryptedData.length <= MAX_ENCRYPTED_DATA_BYTES, "encryptedData too large");
+    function storeEncrypted(bytes32 slot, bytes calldata payload) external {
+        require(slot != bytes32(0), "slot cannot be zero");
+        require(payload.length != 0, "payload cannot be empty");
+        require(payload.length <= MAX_ENCRYPTED_DATA_BYTES, "payload too large");
 
-        entries[dataId] = Entry({
-            encryptedData: encryptedData,
+        entries[slot] = Entry({
+            payload: payload,
             timestamp: block.timestamp
         });
 
-        emit DataStored(msg.sender, dataId, encryptedData, block.timestamp);
+        emit DataStored(msg.sender, slot, payload, block.timestamp);
     }
 
     /**
-     * @notice Retrieve the encrypted payload for a given dataId.
-     * @param dataId The keyed data identifier used when storing
-     * @return encryptedData The stored encrypted payload (empty bytes if nothing stored)
+     * @notice Retrieve the encrypted payload for a given slot.
+     * @param slot The derived storage slot used when storing
+     * @return payload The stored encrypted payload (empty bytes if nothing stored)
      * @return timestamp The block timestamp when it was stored (0 if nothing stored)
      */
-    function getEncrypted(bytes32 dataId) external view returns (
-        bytes memory encryptedData,
+    function getEncrypted(bytes32 slot) external view returns (
+        bytes memory payload,
         uint256 timestamp
     ) {
-        Entry storage entry = entries[dataId];
-        return (entry.encryptedData, entry.timestamp);
+        Entry storage entry = entries[slot];
+        return (entry.payload, entry.timestamp);
     }
 }

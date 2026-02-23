@@ -20,12 +20,14 @@ export function normalizeIdentifier(idString) {
 }
 
 /**
- * Compute bytes32 dataId from a human-readable string using a keyed HMAC.
- * @param {Uint8Array|string} keyId - 32-byte secret (hex string or bytes)
+ * Derive the bytes32 storage slot from a human-readable identifier using a keyed HMAC.
+ * The slot is a unique, opaque location in the contract mapping derived from
+ * passphrase (via keyId) + identifier — preventing enumeration and collisions.
+ * @param {Uint8Array|string} keyId - 32-byte HMAC key derived from master key (hex string or bytes)
  * @param {string} idString
  * @returns {`0x${string}`}
  */
-export function computeDataIdKeyed(keyId, idString) {
+export function computeSlot(keyId, idString) {
   const normalized = normalizeIdentifier(idString);
   const keyBytes = typeof keyId === "string" ? hexToBytes(keyId) : keyId;
   const mac = crypto
@@ -62,31 +64,20 @@ export function deriveKemSeedBytes(masterKeyBytes, normalizedId) {
   return hkdfBytes(masterKeyBytes, Buffer.from(`kem:${normalizedId}`, "utf8"), 64);
 }
 
-/**
- * Compute bytes32 dataId from a human-readable string.
- * Identifiers are normalized to avoid accidental mismatches.
- * @param {string} idString
- * @param {Uint8Array|string} keyId
- * @returns {`0x${string}`}
- */
-export function computeDataId(idString, keyId) {
-  if (!keyId) throw new Error("Missing keyId for keyed dataId");
-  return computeDataIdKeyed(keyId, idString);
-}
 
 /**
- * Build AES-GCM AAD that binds the payload to (version, algId, dataId).
- * @param {`0x${string}`} dataId
+ * Build AES-GCM AAD that binds the payload to (version, algId, slot).
+ * @param {`0x${string}`} slot
  * @param {{ version?: number, algId?: number }} [opts]
  * @returns {Buffer}
  */
 export function buildAad(
-  dataId,
+  slot,
   { version = PROTOCOL_VERSION, algId = ALG_ID_MLKEM768_AES256GCM } = {},
 ) {
   return Buffer.concat([
     Buffer.from([version, algId]),
-    Buffer.from(hexToBytes(dataId)),
+    Buffer.from(hexToBytes(slot)),
   ]);
 }
 
@@ -125,14 +116,14 @@ export function packEncryptedPayload(
  * @returns {{ version: number, algId: number, kemCiphertext: Buffer, iv: Buffer, ciphertext: Buffer, tag: Buffer }}
  */
 export function unpackEncryptedPayload(
-  packed,
+  payload,
   {
     kemCiphertextSize,
     expectedVersion = PROTOCOL_VERSION,
     expectedAlgId = ALG_ID_MLKEM768_AES256GCM,
   },
 ) {
-  const buf = Buffer.from(packed);
+  const buf = Buffer.from(payload);
   if (buf.length < 2 + 12 + 16) throw new Error("payload too small");
 
   const version = buf[0];

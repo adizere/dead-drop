@@ -101,23 +101,24 @@ Decryption is the mirror of the encryption flow. Because all keys are derived de
 3. Derive the ML-KEM-768 keypair: `mlkem.deriveKeyPair(seed)` → `(publicKey, privateKey)`.
 4. Decapsulate: `mlkem.decap(.., privateKey)` → `sharedSecret`. This is analogous to the _encapsulation_ step from the encryption flow.
 5. Derive the AES-256-GCM key from `sharedSecret` via HKDF (same salt and info as encryption).
-6. Retrieve the ciphertext from the blockchain Decrypt `ciphertext` using the shared secret.
+6. Re-derive `slot` via keyed HMAC; fetch the payload from the contract (`getEncrypted(slot)`).
+7. Decrypt the payload using the AES-256-GCM key, `iv`, `tag`, and AAD.
 
 No private key material touches the network. Decryption is entirely local.
 
-### Identifier derivation
+### Slot derivation
 
-One step we didn't cover explicitly in the high-level flow above is: How does the system determine which index to use for storing the ciphertext on-chain during the encryption flow? Each ciphertext should be stored at a unique location, to prevent collision. Some identifiers are very common, for example, 'my note' or '2026-secret'. If two users want to store a message on-chain that using the same identifier, as long as they use different passphrases, their secret messages should not collide (i.e., overwrite one another) and should therefore occupy different locations on-chain.
+One step we didn't cover explicitly in the high-level flow above is: How does the system determine which index to use for storing the payload on-chain during the encryption flow? Each payload should be stored at a unique location, to prevent collision. Some identifiers are very common, for example, 'my note' or '2026-secret'. If two users want to store a message on-chain using the same identifier, as long as they use different passphrases, their secret messages should not collide (i.e., overwrite one another) and should therefore occupy different locations on-chain.
 
-The decryption flow must use the same index to locate a specific ciphertext and retrieve it.
+The decryption flow must use the same index to locate a specific payload and retrieve it.
 
-An identifiers on its own is low-entropy and should not be stored plainly. So this prototype derives a `dataId` derived using a keyed HMAC to prevent enumeration or collisions:
+An identifier on its own is low-entropy and should not be stored plainly. So this prototype derives a `slot` using a keyed HMAC to prevent enumeration or collisions:
 
 - `masterKey = PBKDF2(passphrase, "shared-secret:v1", 600k iterations, SHA-256)`
 - `keyId = HKDF(masterKey, info="id-key", len=32)`
-- `dataId = HMAC-SHA256(keyId, normalizedId)` → 32 bytes
+- `slot = HMAC-SHA256(keyId, normalizedId)` → 32 bytes
 
-The system stores the ciphertext indexed at location that `keyeDataId` provides. Since this index is a unique combination of the passphrase and identifier, the system will avoid collisions on the same index or enumerating indexes.
+The system stores the payload indexed at the location that `slot` provides. Since this index is a unique combination of the passphrase and identifier, the system will avoid collisions on the same index or enumerating indexes.
 
 ## Quick start
 
