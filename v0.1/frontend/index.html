@@ -336,37 +336,7 @@
     </div>
     <hr>
 
-    <div class="notice">&#9888; Highly experimental &mdash; for educational purposes only. Not security-audited. Do not use for sensitive data.</div>
-    <hr class="thin">
-
-    <details class="how-it-works">
-      <summary>Chain</summary>
-      <div class="meta-block">
-        <div class="row">Network .......... Arc Testnet (5042002)</div>
-        <div class="row">Protocol ......... ML-KEM-768 + AES-256-GCM</div>
-        <div class="row">Contract ......... <span class="meta-contract-wrap"><span id="meta-contract">0x&hellip;</span><button type="button" class="meta-explorer-btn" id="meta-explorer-btn" title="Open in block explorer">&#8599;</button></span></div>
-      </div>
-    </details>
-    <hr class="thin">
-
-    <details class="how-it-works">
-      <summary>How it works</summary>
-      <pre class="protocol-art">
-  PASSPHRASE  ·  IDENTIFIER
-       │               │
-       └───────┬───────┘
-               │ derive
-               ▼
-        ┌──────┴─────────────┐
-        │                    │
-        ▼                    ▼
-   SLOT (bytes32)      KEM KEYPAIR
-
-   STORE:  MESSAGE ─► encrypt ─► chain[SLOT]
-   FETCH:  chain[SLOT] ─► decrypt ─► MESSAGE
-
-   lose either PASSPHRASE or IDENTIFIER — lose access to MESSAGE</pre>
-    </details>
+    <div class="notice">&#9888; Highly experimental &mdash; for educational purposes only</div>
 
     <hr class="thin">
 
@@ -399,6 +369,66 @@
     </div>
     <div class="wallet-note" id="wallet-note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
     <div class="status" id="msg-status"></div>
+
+    <hr class="thin">
+
+    <details class="how-it-works">
+      <summary>Chain</summary>
+      <div class="meta-block">
+        <div class="row">Network .......... Arc Testnet (5042002)</div>
+        <div class="row">Protocol ......... ML-KEM-768 + AES-256-GCM</div>
+        <div class="row">Contract ......... <span class="meta-contract-wrap"><span id="meta-contract">0x&hellip;</span><button type="button" class="meta-explorer-btn" id="meta-explorer-btn" title="Open in block explorer">&#8599;</button></span></div>
+      </div>
+    </details>
+    <hr class="thin">
+
+    <details class="how-it-works">
+      <summary>How it works</summary>
+      <pre class="protocol-art">
+  ┌────────────────────────────────────────────────┐
+  │                  CHAIN VAULT                   │
+  ├────────────────────────────────────────────────┤
+  │                                                │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+  │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓▓    │  │▓▓        │      │
+  │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓       │  │          │      │
+  │  │▓▓▓▓▓▓    │  │          │  │          │      │
+  │  ├──────────┤  ├──────────┤  ├──────────┤      │
+  │  │ 0x3f4a…  │  │ 0x7c2b…  │  │ 0x1a9e…  │      │
+  │  └────[■]───┘  └────[■]───┘  └────[■]───┘      │
+  │                                                │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+  │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓▓▓▓▓ │      │
+  │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓▓    │      │
+  │  │▓▓▓▓▓▓▓▓▓ │  │▓▓▓▓▓     │  │▓▓▓       │      │
+  │  ├──────────┤  ├──────────┤  ├──────────┤      │
+  │  │ 0xd5f1…  │  │ 0x8e3c…  │  │ 0xa2f7…  │      │
+  │  └────[■]───┘  └────[■]───┘  └────[■]───┘      │
+  │                                                │
+  │  ▓ = encrypted message     [■] on-chain slot   │
+  └────────────────────────────────────────────────┘
+
+  > both PASSPHRASE & IDENTIFIER are necessary to locate a
+  > slot in the vault and to decrypt the original MESSAGE
+
+  PASSPHRASE  ·  IDENTIFIER
+       │               │
+       └───────┬───────┘
+               │ derive
+               ▼
+        ┌──────┴─────────────┐
+        │                    │
+        ▼                    ▼
+      SLOT                KEYPAIR
+   (location)      (en/decryption key)
+
+  > each combination of PASSPHRASE & IDENTIFIER yields a unique
+  > SLOT for storing the encrypted message in the vault
+
+  > STORE   MESSAGE ─► encrypt ─► (chain[SLOT]: encrypted message)
+  > FETCH   (chain[SLOT]: encrypted message) ─► decrypt ─► MESSAGE
+   </pre>
+    </details>
 
     <hr>
     <div class="footer" id="footer">Wallet: not connected &middot; Arc Testnet &middot; Dead Drop v0.1</div>
