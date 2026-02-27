@@ -235,23 +235,12 @@
       padding: 0.25rem 0;
     }
 
-    /* Two-column row for retrieve inputs */
+    /* Two-column row for inputs */
     .input-row {
       display: flex;
       gap: 1rem;
     }
     .input-row > div { flex: 1; }
-
-    /* Action row: two buttons side by side */
-    .action-row {
-      display: flex;
-      gap: 0.6rem;
-      margin-top: 0.85rem;
-    }
-    .action-row .btn {
-      flex: 1;
-      margin-top: 0;
-    }
 
     /* Dirty-state badge — same visual language as .product-code */
     .dirty-mark {
@@ -266,21 +255,6 @@
     }
     .dirty-mark.new      { color: #1a5c1a; } /* green  — fresh content  */
     .dirty-mark.modified { color: #7a5500; } /* amber  — edited after retrieve */
-
-    /* Wallet connect note below action row */
-    .wallet-note {
-      font-size: 0.72rem;
-      text-align: right;
-      margin-top: 0.4rem;
-      color: #666;
-    }
-    .wallet-note a {
-      color: #111;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      cursor: pointer;
-    }
-    .wallet-note a:hover { color: #444; }
 
     /* Foldable how-it-works explainer */
     .how-it-works summary {
@@ -317,7 +291,6 @@
     @media (max-width: 540px) {
       .container { padding: 1rem; }
       .input-row { flex-direction: column; gap: 0; }
-      .action-row { flex-direction: column; gap: 0.4rem; }
       .wallet-note { text-align: left; }
       .header h1 { font-size: 1.1rem; }
     }
@@ -343,7 +316,7 @@
     <div class="input-row">
       <div>
         <label for="passphrase">Passphrase</label>
-        <input type="password" id="passphrase" placeholder="enter passphrase to unlock" autocomplete="off">
+        <input type="password" id="passphrase" placeholder="enter passphrase" autocomplete="off">
       </div>
       <div>
         <label for="access-identifier">Identifier</label>
@@ -351,8 +324,8 @@
       </div>
     </div>
 
-    <button class="btn btn-outline" id="unlock-btn">Unlock &rarr;</button>
-    <div class="status" id="passphrase-status"></div>
+    <button class="btn btn-primary" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
+    <div class="status" id="retrieve-status"></div>
 
     <hr class="thin">
 
@@ -360,14 +333,10 @@
     <div class="editor" id="msg-editor">
       <div class="gutter" id="msg-gutter"></div>
       <textarea id="store-msg" rows="8"
-        placeholder="type to store &middot; or click retrieve to populate"></textarea>
+        placeholder="Nothing stored here yet — type a message and Store to create."></textarea>
     </div>
 
-    <div class="action-row">
-      <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
-      <button class="btn btn-primary" id="store-btn"    disabled>Encrypt &amp; Store &rarr;</button>
-    </div>
-    <div class="wallet-note" id="wallet-note"><a id="connect-wallet-link">Connect wallet &rarr;</a></div>
+    <button class="btn btn-outline" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
     <div class="status" id="msg-status"></div>
 
     <hr class="thin">
@@ -440,7 +409,6 @@
   <script type="module">
 
     // ─── CONFIGURATION ──────────────────────────────────────────────
-    // Fill these in before use.
     const CONTRACT_ADDRESS  = "0xA459445d807ac26d9b9135C6e2cda272081a0182";
 
     const ARC_RPC      = "https://rpc.testnet.arc.network";
@@ -713,11 +681,21 @@
     }
 
     // ═════════════════════════════════════════════════════════════════
+    // KEY DERIVATION
+    // ═════════════════════════════════════════════════════════════════
+    async function deriveKeys(passphrase, identifier) {
+      if (!passphrase) throw new Error("Passphrase is required.");
+      if (!identifier || !identifier.trim()) throw new Error("Identifier is required.");
+      masterKeyBytes = await deriveMasterKeyBytes(passphrase);
+      keyIdBytes = await deriveKeyIdBytes(masterKeyBytes);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
     // ENCRYPT & STORE
     // ═════════════════════════════════════════════════════════════════
     async function encryptAndStore(identifier, message) {
       if (!account) throw new Error("Wallet not connected.");
-      if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
+      if (!masterKeyBytes || !keyIdBytes) throw new Error("Keys not derived.");
 
       const normalizedId = normalizeIdentifier(identifier);
       const slot = await computeSlot(normalizedId, keyIdBytes);
@@ -762,7 +740,7 @@
     // RETRIEVE & DECRYPT
     // ═════════════════════════════════════════════════════════════════
     async function retrieveAndDecrypt(identifier) {
-      if (!masterKeyBytes || !keyIdBytes) throw new Error("Passphrase not unlocked.");
+      if (!masterKeyBytes || !keyIdBytes) throw new Error("Keys not derived.");
 
       const normalizedId = normalizeIdentifier(identifier);
       const slot = await computeSlot(normalizedId, keyIdBytes);
@@ -807,14 +785,11 @@
     // Elements
     const passphraseEl    = $("#passphrase");
     const identifierEl    = $("#access-identifier");
-    const unlockBtnEl     = $("#unlock-btn");
-    const passphraseStatEl = $("#passphrase-status");
+    const retrieveStatEl  = $("#retrieve-status");
     const storeMsgEl      = $("#store-msg");
     const storeBtnEl      = $("#store-btn");
     const retrieveBtnEl   = $("#retrieve-btn");
     const msgStatusEl     = $("#msg-status");
-    const connectEl       = $("#connect-wallet-link");
-    const walletNoteEl    = $("#wallet-note");
     const dirtyMarkEl     = $("#dirty-mark");
     const footerEl        = $("#footer");
     const metaContractEl  = $("#meta-contract");
@@ -864,38 +839,26 @@
     });
 
     // ── Button state ────────────────────────────────────────────────
-    function isUnlocked() {
-      return !!masterKeyBytes && !!keyIdBytes;
+    function syncRetrieveBtn() {
+      retrieveBtnEl.disabled = !passphraseEl.value || !identifierEl.value.trim();
     }
 
     function syncStoreBtn() {
       storeBtnEl.disabled =
-        !isUnlocked() || !account || !identifierEl.value.trim() || !storeMsgEl.value.trim();
-    }
-
-    function syncRetrieveBtn() {
-      const hasId = !!identifierEl.value.trim();
-      retrieveBtnEl.disabled = !isUnlocked() || !hasId;
+        !passphraseEl.value || !identifierEl.value.trim() || !storeMsgEl.value.trim();
     }
 
     passphraseEl.addEventListener("input", () => {
-      masterKeyBytes = null;
-      keyIdBytes = null;
-      setStatus(passphraseStatEl, "Locked. Enter passphrase and unlock.", "error");
-      syncStoreBtn();
       syncRetrieveBtn();
+      syncStoreBtn();
     });
 
-    identifierEl.addEventListener("input", async () => {
-      syncStoreBtn();
+    identifierEl.addEventListener("input", () => {
       syncRetrieveBtn();
-      if (isUnlocked()) {
-        setStatus(passphraseStatEl, "Identifier changed. Checking for existing data…");
-        await checkExistingData();
-      }
+      syncStoreBtn();
     });
 
-    // ── Status helpers ──────────────────────────────��────────────��──
+    // ── Status helpers ──────────────────────────────────────────────
     function setStatus(el, msg, cls) {
       el.textContent = msg;
       el.className = "status" + (cls ? " " + cls : "");
@@ -931,131 +894,73 @@
       refreshGutter(storeMsgEl, "msg-gutter");
     }
 
-    async function checkExistingData() {
-      if (!isUnlocked() || !identifierEl.value.trim()) return;
-      try {
-        const normalizedId = normalizeIdentifier(identifierEl.value);
-        const slot = await computeSlot(normalizedId, keyIdBytes);
-        const contract = getContract({
-          address: CONTRACT_ADDRESS,
-          abi: ABI,
-          client: publicClient,
-        });
-        const [payload] = await contract.read.getEncrypted([slot]);
-        if (payload && payload !== "0x") {
-          setStatus(passphraseStatEl, "Existing data found. Click Retrieve to decrypt.", "success");
-        } else {
-          setStatus(passphraseStatEl, "No data found. Type a message and Store to create.", "success");
-        }
-      } catch (err) {
-        setStatus(
-          passphraseStatEl,
-          "Unlocked. Could not check existing data.",
-          "error",
-        );
-      }
-    }
-
-    async function unlockWithPassphrase() {
-      const passphrase = passphraseEl.value;
-      const identifier = identifierEl.value;
-      if (!passphrase) throw new Error("Passphrase is required.");
-      if (!identifier || !identifier.trim()) throw new Error("Identifier is required.");
-      setStatus(passphraseStatEl, "Deriving keys…");
-      masterKeyBytes = await deriveMasterKeyBytes(passphrase);
-      keyIdBytes = await deriveKeyIdBytes(masterKeyBytes);
-      setStatus(passphraseStatEl, "Unlocked. Checking for existing data…");
-
-      if (!account) {
-        setStatus(
-          passphraseStatEl,
-          "Unlocked. Connect wallet to store; you can retrieve without a wallet.",
-          "success",
-        );
-      }
-      await checkExistingData();
-    }
-
-    // ── Connect wallet ──────────────────────────────────────────────
-    unlockBtnEl.addEventListener("click", async () => {
-      try {
-        unlockBtnEl.disabled = true;
-        await unlockWithPassphrase();
-      } catch (err) {
-        setStatus(passphraseStatEl, "ERR: " + err.message, "error");
-      } finally {
-        unlockBtnEl.disabled = false;
-        syncStoreBtn();
-        syncRetrieveBtn();
-      }
-    });
-
-    connectEl.addEventListener("click", async (e) => {
-      e.preventDefault();
-      try {
-        connectEl.textContent = "Connecting\u2026";
-        await connectWallet();
-        walletNoteEl.style.display = "none";
-        updateFooter();
-        syncStoreBtn();
-        syncRetrieveBtn();
-        await checkExistingData();
-      } catch (err) {
-        connectEl.textContent = "Connect wallet \u2192";
-        setStatus(msgStatusEl, "ERR: " + err.message, "error");
-      }
-    });
-
-    // ── Store action ────────────────────────────────────────────────
-    storeBtnEl.addEventListener("click", async () => {
-      const id  = identifierEl.value.trim();
-      const msg = storeMsgEl.value;
-      if (!id || !msg) return;
-
-      storeBtnEl.disabled = true;
-      setStatus(msgStatusEl, "Encrypting\u2026");
-
-      try {
-        setStatus(msgStatusEl, "Encrypting\u2026 sending transaction");
-        const { txHash, bytes } = await encryptAndStore(id, msg);
-        setOutput("");
-        setStatus(msgStatusEl, `Stored (${bytes} bytes). Tx: ${txHash}`, "success");
-      } catch (err) {
-        setStatus(msgStatusEl, "ERR: " + err.message, "error");
-      } finally {
-        syncStoreBtn();
-      }
-    });
-
     // ── Retrieve action ─────────────────────────────────────────────
     retrieveBtnEl.addEventListener("click", async () => {
-      const id   = identifierEl.value.trim();
-      if (!id) return;
+      const passphrase = passphraseEl.value;
+      const id = identifierEl.value.trim();
+      if (!passphrase || !id) return;
 
       retrieveBtnEl.disabled = true;
-      setStatus(msgStatusEl, "Retrieving\u2026");
-      setOutput("");
+      setStatus(retrieveStatEl, "Deriving keys\u2026");
 
       try {
+        await deriveKeys(passphrase, id);
+        setStatus(retrieveStatEl, "Retrieving\u2026");
+        setOutput("");
         const { message, timestamp } = await retrieveAndDecrypt(id);
         setOutput(message);
         const when = timestamp
           ? new Date(timestamp * 1000).toISOString()
           : "unknown";
-        setStatus(msgStatusEl, `Decrypted. Stored at: ${when}`, "success");
+        setStatus(retrieveStatEl, `Decrypted. Stored at: ${when}`, "success");
+      } catch (err) {
+        setStatus(retrieveStatEl, "ERR: " + err.message, "error");
+      } finally {
+        syncRetrieveBtn();
+        syncStoreBtn();
+      }
+    });
+
+    // ── Store action ────────────────────────────────────────────────
+    storeBtnEl.addEventListener("click", async () => {
+      const passphrase = passphraseEl.value;
+      const id  = identifierEl.value.trim();
+      const msg = storeMsgEl.value;
+      if (!passphrase || !id || !msg) return;
+
+      // Wallet connect inline if needed
+      if (!account) {
+        try {
+          setStatus(msgStatusEl, "Connecting wallet\u2026");
+          await connectWallet();
+          updateFooter();
+        } catch (err) {
+          setStatus(msgStatusEl, "ERR: " + err.message, "error");
+          return;
+        }
+      }
+
+      storeBtnEl.disabled = true;
+      setStatus(msgStatusEl, "Deriving keys\u2026");
+
+      try {
+        await deriveKeys(passphrase, id);
+        setStatus(msgStatusEl, "Encrypting\u2026 sending transaction");
+        const { txHash, bytes } = await encryptAndStore(id, msg);
+        setOutput("");
+        setStatus(msgStatusEl, `Stored (${bytes}\u202Fbytes). Tx:\u202F${txHash}`, "success");
       } catch (err) {
         setStatus(msgStatusEl, "ERR: " + err.message, "error");
       } finally {
-        syncRetrieveBtn();
+        syncStoreBtn();
       }
     });
 
     // ── Init ────────────────────────────────────────────────────────
     updateFooter();
     updateDirtyMark();
-    setStatus(passphraseStatEl, "Locked. Enter passphrase and unlock.", "error");
-    syncStoreBtn();
     syncRetrieveBtn();
+    syncStoreBtn();
 
   </script>
 </body>
