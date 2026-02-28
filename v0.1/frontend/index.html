@@ -253,8 +253,83 @@
       vertical-align: middle;
       margin-left: 0.5rem;
     }
-    .dirty-mark.new      { color: #1a5c1a; } /* green  — fresh content  */
-    .dirty-mark.modified { color: #7a5500; } /* amber  — edited after retrieve */
+    .dirty-mark.new       { color: #1a5c1a; } /* green  — fresh content          */
+    .dirty-mark.retrieved { color: #1a3a8f; } /* blue   — fetched from chain      */
+    .dirty-mark.modified  { color: #7a5500; } /* amber  — edited after retrieve   */
+    .dirty-mark.stored    { color: #5c1a8f; } /* purple — committed to chain      */
+
+    /* Message label row: label + optional tx link on the same line */
+    .msg-label-row {
+      display: flex;
+      align-items: baseline;
+      margin-top: 0.85rem;
+      margin-bottom: 0.2rem;
+    }
+    .msg-label-row label { margin-top: 0; margin-bottom: 0; }
+
+    /* Tx hash link next to the stored badge */
+    .tx-link {
+      font-family: inherit;
+      font-size: 0.72rem;
+      line-height: 1;
+      padding: 0.1rem 0.35rem;
+      border: 1px solid currentColor;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+    }
+    .tx-link:hover { opacity: 0.65; }
+
+    /* Segmented control — Drop / Retrieve mode switcher */
+    .seg-control {
+      display: flex;
+      margin-top: 1rem;
+    }
+    .seg-btn {
+      flex: 1;
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.35rem 0;
+      border: 1px solid #111;
+      background: transparent;
+      color: #111;
+      cursor: pointer;
+    }
+    .seg-btn + .seg-btn { border-left: none; }
+    .seg-btn.active { background: #111; color: #f5f2ed; }
+    .seg-btn.active::after { content: " \2022"; color: #c00; }
+    .seg-btn:not(.active):hover { background: #f0ece5; }
+
+    /* Textarea disabled state (Retrieve mode) */
+    .editor textarea:disabled {
+      color: #999;
+      -webkit-text-fill-color: #999;
+      cursor: default;
+    }
+    .editor:has(textarea:disabled) { border-color: #ccc; }
+    .editor:has(textarea:disabled) .gutter { opacity: 0.5; }
+
+    /* Edit-in-Drop affordance */
+    .btn-edit-in-drop {
+      display: inline-block;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.15rem 0.5rem;
+      border: 1px solid #111;
+      background: transparent;
+      color: #111;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .btn-edit-in-drop:hover { background: #111; color: #f5f2ed; }
 
     /* Foldable how-it-works explainer */
     .how-it-works summary {
@@ -303,20 +378,36 @@
     <div class="header">
       <div>
         <h1>Dead Drop</h1>
-        <div class="subtitle">Post-quantum encrypted on-chain storage</div>
+        <div class="subtitle">
+          A protocol for dropping & retrieving secret messages with no intermediaries</div>
       </div>
       <div class="product-code">v0.1</div>
     </div>
     <hr>
 
-    <div class="notice">&#9888; Highly experimental &mdash; for educational purposes only</div>
+    <div class="notice">Each message is passphrase-gated with end to end post-quantum encryption<br>&#9888; Highly experimental &mdash; for educational purposes only</div>
+
+    <div class="seg-control">
+      <button class="seg-btn active" id="tab-drop">Drop</button>
+      <button class="seg-btn" id="tab-retrieve">Retrieve</button>
+    </div>
 
     <hr class="thin">
+
+    <div class="msg-label-row">
+      <label>Message <span class="dirty-mark" id="dirty-mark" style="display:none"></span></label>
+      <button class="tx-link" id="tx-label-link" style="display:none"></button>
+    </div>
+    <div class="editor" id="msg-editor">
+      <div class="gutter" id="msg-gutter"></div>
+      <textarea id="store-msg" rows="8"
+        placeholder="Type your secret message"></textarea>
+    </div>
 
     <div class="input-row">
       <div>
         <label for="passphrase">Passphrase</label>
-        <input type="password" id="passphrase" placeholder="enter passphrase" autocomplete="off">
+        <input type="password" id="passphrase" placeholder="enter a passphrase" autocomplete="off">
       </div>
       <div>
         <label for="access-identifier">Identifier</label>
@@ -324,20 +415,16 @@
       </div>
     </div>
 
-    <button class="btn btn-primary" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
-    <div class="status" id="retrieve-status"></div>
-
-    <hr class="thin">
-
-    <label>Message <span class="dirty-mark" id="dirty-mark" style="display:none"></span></label>
-    <div class="editor" id="msg-editor">
-      <div class="gutter" id="msg-gutter"></div>
-      <textarea id="store-msg" rows="8"
-        placeholder="Nothing stored here yet — type a message and Store to create."></textarea>
+    <div id="panel-drop">
+      <button class="btn btn-primary" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
+      <div class="status" id="msg-status"></div>
     </div>
 
-    <button class="btn btn-outline" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
-    <div class="status" id="msg-status"></div>
+    <div id="panel-retrieve" style="display:none">
+      <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
+      <div class="status" id="retrieve-status"></div>
+      <button class="btn-edit-in-drop" id="edit-in-drop-btn" style="display:none">Edit in Drop &rarr;</button>
+    </div>
 
     <hr class="thin">
 
@@ -641,6 +728,7 @@
 
     let isDirty = false;
     let retrievedContent = null; // null = nothing retrieved; string = last retrieved value
+    let mode = "drop";           // "drop" | "retrieve"
 
     async function connectWallet() {
       if (!window.ethereum) throw new Error("No wallet detected. Install MetaMask.");
@@ -791,9 +879,15 @@
     const retrieveBtnEl   = $("#retrieve-btn");
     const msgStatusEl     = $("#msg-status");
     const dirtyMarkEl     = $("#dirty-mark");
+    const txLabelLinkEl   = $("#tx-label-link");
     const footerEl        = $("#footer");
     const metaContractEl  = $("#meta-contract");
     const metaExplorerBtn = $("#meta-explorer-btn");
+    const tabDropBtnEl     = $("#tab-drop");
+    const tabRetrieveBtnEl = $("#tab-retrieve");
+    const panelDropEl      = $("#panel-drop");
+    const panelRetrieveEl  = $("#panel-retrieve");
+    const editInDropBtnEl  = $("#edit-in-drop-btn");
 
     // ── Contract display ────────────────────────────────────────────
     metaContractEl.textContent =
@@ -831,8 +925,24 @@
     refreshGutter(storeMsgEl, "msg-gutter");
     setupEditor("msg-editor", "msg-gutter");
 
+    tabDropBtnEl.addEventListener("click", () => { if (mode !== "drop") switchTab("drop"); });
+    tabRetrieveBtnEl.addEventListener("click", () => { if (mode !== "retrieve") switchTab("retrieve"); });
+
+    editInDropBtnEl.addEventListener("click", () => {
+      const msg = storeMsgEl.value;
+      switchTab("drop");
+      storeMsgEl.value = msg;
+      retrievedContent = msg;
+      isDirty = false;
+      updateDirtyMark();
+      refreshGutter(storeMsgEl, "msg-gutter");
+      syncStoreBtn();
+    });
+
     storeMsgEl.addEventListener("input", () => {
-      isDirty = !!storeMsgEl.value;
+      isDirty = retrievedContent !== null
+        ? storeMsgEl.value !== retrievedContent  // dirty if diverged from retrieved text
+        : !!storeMsgEl.value;                    // dirty if any content typed from scratch
       updateDirtyMark();
       refreshGutter(storeMsgEl, "msg-gutter");
       syncStoreBtn();
@@ -864,6 +974,30 @@
       el.className = "status" + (cls ? " " + cls : "");
     }
 
+    function switchTab(newMode) {
+      mode = newMode;
+      const toDrop = newMode === "drop";
+      tabDropBtnEl.classList.toggle("active", toDrop);
+      tabRetrieveBtnEl.classList.toggle("active", !toDrop);
+      panelDropEl.style.display     = toDrop ? "" : "none";
+      panelRetrieveEl.style.display = toDrop ? "none" : "";
+      storeMsgEl.value = "";
+      storeMsgEl.disabled = !toDrop;
+      dirtyMarkEl.style.display = "none";
+      txLabelLinkEl.style.display = "none";
+      refreshGutter(storeMsgEl, "msg-gutter");
+      if (toDrop) {
+        retrievedContent = null;
+        isDirty = false;
+        setStatus(retrieveStatEl, "");
+        syncStoreBtn();
+      } else {
+        editInDropBtnEl.style.display = "none";
+        setStatus(msgStatusEl, "");
+      }
+      syncRetrieveBtn();
+    }
+
     function updateFooter() {
       const w = account
         ? account.slice(0, 6) + "\u2026" + account.slice(-4)
@@ -872,17 +1006,29 @@
     }
 
     function updateDirtyMark() {
-      if (!isDirty || !storeMsgEl.value) {
+      if (!storeMsgEl.value && retrievedContent === null) {  // branch 1: empty, no prior retrieve
         dirtyMarkEl.style.display = "none";
-        return;
-      }
-      dirtyMarkEl.style.display = "";
-      if (retrievedContent !== null) {
+        txLabelLinkEl.style.display = "none";
+      } else if (retrievedContent !== null && !isDirty) {  // branch 4: RETRIEVED
+        dirtyMarkEl.style.display = "";
+        dirtyMarkEl.textContent = "RETRIEVED";
+        dirtyMarkEl.className = "dirty-mark retrieved";
+        txLabelLinkEl.style.display = "none";
+      } else if (retrievedContent !== null && isDirty) {   // branch 5: MODIFIED
+        dirtyMarkEl.style.display = "";
         dirtyMarkEl.textContent = "MODIFIED";
         dirtyMarkEl.className = "dirty-mark modified";
-      } else {
+        txLabelLinkEl.style.display = "none";
+      } else if (isDirty) {                                // branch 3: UNSAVED
+        dirtyMarkEl.style.display = "";
         dirtyMarkEl.textContent = "UNSAVED";
         dirtyMarkEl.className = "dirty-mark new";
+        txLabelLinkEl.style.display = "none";
+      } else {                                             // branch 2: post-Store
+        dirtyMarkEl.style.display = "";
+        dirtyMarkEl.textContent = "STORED";
+        dirtyMarkEl.className = "dirty-mark stored";
+        txLabelLinkEl.style.display = "";
       }
     }
 
@@ -901,14 +1047,22 @@
       if (!passphrase || !id) return;
 
       retrieveBtnEl.disabled = true;
+      editInDropBtnEl.style.display = "none";
+      dirtyMarkEl.style.display = "none";
+      storeMsgEl.value = "";
+      refreshGutter(storeMsgEl, "msg-gutter");
       setStatus(retrieveStatEl, "Deriving keys\u2026");
 
       try {
         await deriveKeys(passphrase, id);
         setStatus(retrieveStatEl, "Retrieving\u2026");
-        setOutput("");
         const { message, timestamp } = await retrieveAndDecrypt(id);
-        setOutput(message);
+        storeMsgEl.value = message;
+        dirtyMarkEl.style.display = "";
+        dirtyMarkEl.textContent = "RETRIEVED";
+        dirtyMarkEl.className = "dirty-mark retrieved";
+        refreshGutter(storeMsgEl, "msg-gutter");
+        editInDropBtnEl.style.display = "";
         const when = timestamp
           ? new Date(timestamp * 1000).toISOString()
           : "unknown";
@@ -917,7 +1071,6 @@
         setStatus(retrieveStatEl, "ERR: " + err.message, "error");
       } finally {
         syncRetrieveBtn();
-        syncStoreBtn();
       }
     });
 
@@ -946,9 +1099,18 @@
       try {
         await deriveKeys(passphrase, id);
         setStatus(msgStatusEl, "Encrypting\u2026 sending transaction");
-        const { txHash, bytes } = await encryptAndStore(id, msg);
-        setOutput("");
-        setStatus(msgStatusEl, `Stored (${bytes}\u202Fbytes). Tx:\u202F${txHash}`, "success");
+        const { txHash } = await encryptAndStore(id, msg);
+        storeMsgEl.value = msg;
+        retrievedContent = null;
+        isDirty = false;
+        const shortHash = txHash.slice(0, 6) + "\u2026" + txHash.slice(-4);
+        txLabelLinkEl.textContent = shortHash + " \u2197";
+        txLabelLinkEl.title = txHash;
+        txLabelLinkEl.onclick = () => window.open(`https://testnet.arcscan.app/tx/${txHash}`, "_blank", "noopener,noreferrer");
+        updateDirtyMark();
+        refreshGutter(storeMsgEl, "msg-gutter");
+        setStatus(retrieveStatEl, "");
+        setStatus(msgStatusEl, "");
       } catch (err) {
         setStatus(msgStatusEl, "ERR: " + err.message, "error");
       } finally {
