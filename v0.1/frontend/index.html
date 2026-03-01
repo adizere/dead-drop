@@ -261,7 +261,7 @@
     /* Message label row: label + optional tx link on the same line */
     .msg-label-row {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       margin-top: 0.85rem;
       margin-bottom: 0.2rem;
     }
@@ -322,12 +322,12 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      padding: 0.15rem 0.5rem;
+      padding: 0.1rem 0.4rem;
       border: 1px solid #111;
       background: transparent;
       color: #111;
       cursor: pointer;
-      margin-top: 0.5rem;
+      margin-left: 0.6rem;
     }
     .btn-edit-in-drop:hover { background: #111; color: #f5f2ed; }
 
@@ -388,21 +388,11 @@
     <div class="notice">Each message is passphrase-gated with end to end post-quantum encryption<br>&#9888; Highly experimental &mdash; for educational purposes only</div>
 
     <div class="seg-control">
-      <button class="seg-btn active" id="tab-drop">Drop</button>
-      <button class="seg-btn" id="tab-retrieve">Retrieve</button>
+      <button class="seg-btn active" id="tab-retrieve">Retrieve</button>
+      <button class="seg-btn" id="tab-drop">Drop</button>
     </div>
 
     <hr class="thin">
-
-    <div class="msg-label-row">
-      <label>Message <span class="dirty-mark" id="dirty-mark" style="display:none"></span></label>
-      <button class="tx-link" id="tx-label-link" style="display:none"></button>
-    </div>
-    <div class="editor" id="msg-editor">
-      <div class="gutter" id="msg-gutter"></div>
-      <textarea id="store-msg" rows="8"
-        placeholder="Type your secret message"></textarea>
-    </div>
 
     <div class="input-row">
       <div>
@@ -415,15 +405,25 @@
       </div>
     </div>
 
-    <div id="panel-drop">
+    <div class="msg-label-row">
+      <label>Message <span class="dirty-mark" id="dirty-mark" style="display:none"></span></label>
+      <button class="btn-edit-in-drop" id="edit-in-drop-btn" style="display:none">Edit in Drop &rarr;</button>
+      <button class="tx-link" id="tx-label-link" style="display:none"></button>
+    </div>
+    <div class="editor" id="msg-editor">
+      <div class="gutter" id="msg-gutter"></div>
+      <textarea id="store-msg" rows="8"
+        placeholder="Your message will appear here once retrieved & decrypted"></textarea>
+    </div>
+
+    <div id="panel-drop" style="display:none">
       <button class="btn btn-primary" id="store-btn" disabled>Encrypt &amp; Store &rarr;</button>
       <div class="status" id="msg-status"></div>
     </div>
 
-    <div id="panel-retrieve" style="display:none">
+    <div id="panel-retrieve">
       <button class="btn btn-outline" id="retrieve-btn" disabled>Retrieve &amp; Decrypt &rarr;</button>
       <div class="status" id="retrieve-status"></div>
-      <button class="btn-edit-in-drop" id="edit-in-drop-btn" style="display:none">Edit in Drop &rarr;</button>
     </div>
 
     <hr class="thin">
@@ -728,7 +728,7 @@
 
     let isDirty = false;
     let retrievedContent = null; // null = nothing retrieved; string = last retrieved value
-    let mode = "drop";           // "drop" | "retrieve"
+    let mode = "retrieve";       // "drop" | "retrieve"
 
     async function connectWallet() {
       if (!window.ethereum) throw new Error("No wallet detected. Install MetaMask.");
@@ -842,7 +842,7 @@
       const [payload, timestamp] = await contract.read.getEncrypted([slot]);
 
       if (!payload || payload === "0x") {
-        throw new Error(`No data found for "${identifier}".`);
+        throw new Error(`No data found for "${identifier}" and the given passphrase.`);
       }
 
       const { kemCt, iv, ct, tag } = unpackPayload(hexToBytes(payload));
@@ -983,10 +983,12 @@
       panelRetrieveEl.style.display = toDrop ? "none" : "";
       storeMsgEl.value = "";
       storeMsgEl.disabled = !toDrop;
+      storeMsgEl.placeholder = toDrop ? "Type your secret message" : "Your message will appear here once retrieved & decrypted";
       dirtyMarkEl.style.display = "none";
       txLabelLinkEl.style.display = "none";
       refreshGutter(storeMsgEl, "msg-gutter");
       if (toDrop) {
+        editInDropBtnEl.style.display = "none";
         retrievedContent = null;
         isDirty = false;
         setStatus(retrieveStatEl, "");
