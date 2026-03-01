@@ -435,7 +435,7 @@
         <div class="row">Protocol ................ ML-KEM-768 + AES-256-GCM</div>
         <div class="row">Contract ................ <span class="meta-contract-wrap"><span id="meta-contract">0x&hellip;</span><button type="button" class="meta-explorer-btn" id="meta-explorer-btn" title="Open in block explorer">&#8599;</button></span></div>
         <div class="row">Recent messages stored .. <span id="meta-msg-count">&hellip;</span></div>
-        <div class="row">Repository .............. </div>
+        <div class="row">Repository .............. <span class="meta-contract-wrap">github.com:adizere/shared-secret<button type="button" class="meta-explorer-btn" id="meta-repo-btn" title="Open repository">&#8599;</button></span></div>
       </div>
     </details>
     <hr class="thin">
@@ -443,6 +443,20 @@
     <details class="how-it-works">
       <summary>How it works</summary>
       <pre class="protocol-art">
+  > both PASSPHRASE & IDENTIFIER are necessary to locate a
+  > slot in the vault and to decrypt the original MESSAGE
+
+  PASSPHRASE  ·  IDENTIFIER
+       │               │
+       └───────┬───────┘
+               │ derive
+               ▼
+        ┌──────┴─────────────┐
+        │                    │
+        ▼                    ▼
+      SLOT                KEYPAIR
+   (location)      (en/decryption key)
+
   ┌────────────────────────────────────────────────┐
   │                  CHAIN VAULT                   │
   ├────────────────────────────────────────────────┤
@@ -466,25 +480,13 @@
   │  ▓ = encrypted message     [■] on-chain slot   │
   └────────────────────────────────────────────────┘
 
-  > both PASSPHRASE & IDENTIFIER are necessary to locate a
-  > slot in the vault and to decrypt the original MESSAGE
-
-  PASSPHRASE  ·  IDENTIFIER
-       │               │
-       └───────┬───────┘
-               │ derive
-               ▼
-        ┌──────┴─────────────┐
-        │                    │
-        ▼                    ▼
-      SLOT                KEYPAIR
-   (location)      (en/decryption key)
-
   > each combination of PASSPHRASE & IDENTIFIER yields a unique
   > SLOT for storing the encrypted message in the vault
 
   > STORE   MESSAGE ─► encrypt ─► (chain[SLOT]: encrypted message)
   > FETCH   (chain[SLOT]: encrypted message) ─► decrypt ─► MESSAGE
+  
+  for more details: https://github.com/adizere/shared-secret
    </pre>
     </details>
 
@@ -886,6 +888,7 @@
     const footerEl        = $("#footer");
     const metaContractEl  = $("#meta-contract");
     const metaExplorerBtn = $("#meta-explorer-btn");
+    const metaRepoBtn     = $("#meta-repo-btn");
     const metaMsgCountEl  = $("#meta-msg-count");
     const tabDropBtnEl     = $("#tab-drop");
     const tabRetrieveBtnEl = $("#tab-retrieve");
@@ -901,6 +904,10 @@
 
     metaExplorerBtn.addEventListener("click", () => {
       window.open(`https://testnet.arcscan.app/address/${CONTRACT_ADDRESS}`, "_blank", "noopener,noreferrer");
+    });
+
+    metaRepoBtn.addEventListener("click", () => {
+      window.open("https://github.com/adizere/shared-secret", "_blank", "noopener,noreferrer");
     });
 
     // ── On-chain message count (DataStored events) ──────────────────
